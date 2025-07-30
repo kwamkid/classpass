@@ -97,6 +97,8 @@ const StudentDetailPage = () => {
       setDeleting(false)
     }
   }
+
+  const calculateAge = (birthDate: string) => {
     const today = new Date()
     const birth = new Date(birthDate)
     let age = today.getFullYear() - birth.getFullYear()
@@ -179,13 +181,19 @@ const StudentDetailPage = () => {
                     />
                     <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-20">
                       <button
-                        onClick={() => handleStatusChange('inactive')}
+                        onClick={() => {
+                          handleStatusChange('inactive')
+                          setMenuOpen(false)
+                        }}
                         className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                       >
                         พักการเรียน
                       </button>
                       <button
-                        onClick={() => handleStatusChange('graduated')}
+                        onClick={() => {
+                          handleStatusChange('graduated')
+                          setMenuOpen(false)
+                        }}
                         className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                       >
                         จบการศึกษา

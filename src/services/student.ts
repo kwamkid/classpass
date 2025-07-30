@@ -11,20 +11,6 @@ import {
   limit,
   serverTimestamp,
   Timestamp
-// Soft delete student
-export const deleteStudent = async (studentId: string): Promise<void> => {
-  try {
-    await updateDoc(doc(db, 'students', studentId), {
-      status: 'inactive',
-      isActive: false,
-      isDeleted: true,
-      deletedAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    })
-  } catch (error) {
-    console.error('Error deleting student:', error)
-    throw error
-  }
 } from 'firebase/firestore'
 import { db } from './firebase'
 
@@ -45,6 +31,7 @@ export interface Student {
   email?: string
   status: 'active' | 'inactive' | 'graduated' | 'suspended'
   isActive: boolean
+  isDeleted?: boolean
   parents?: Parent[]
   address?: Address
   createdAt: Date
@@ -130,33 +117,44 @@ const generateStudentCode = async (schoolId: string): Promise<string> => {
 export const getStudents = async (schoolId: string, status?: string): Promise<Student[]> => {
   try {
     const studentsRef = collection(db, 'students')
-    let q = query(
-      studentsRef,
-      where('schoolId', '==', schoolId),
-      where('isDeleted', '!=', true),
-      orderBy('isDeleted'),
-      orderBy('createdAt', 'desc')
-    )
+    let q
     
+    // Simple query without compound index requirement
     if (status) {
       q = query(
         studentsRef,
         where('schoolId', '==', schoolId),
         where('status', '==', status),
-        where('isDeleted', '!=', true),
-        orderBy('isDeleted'),
+        orderBy('createdAt', 'desc')
+      )
+    } else {
+      q = query(
+        studentsRef,
+        where('schoolId', '==', schoolId),
         orderBy('createdAt', 'desc')
       )
     }
     
     const snapshot = await getDocs(q)
     
-    return snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-      createdAt: doc.data().createdAt?.toDate() || new Date(),
-      updatedAt: doc.data().updatedAt?.toDate() || new Date()
-    })) as Student[]
+    // Filter out deleted students on client side
+    const students: Student[] = []
+    snapshot.docs.forEach(doc => {
+      const data = doc.data()
+      const student = {
+        id: doc.id,
+        ...data,
+        createdAt: data.createdAt?.toDate() || new Date(),
+        updatedAt: data.updatedAt?.toDate() || new Date()
+      } as Student
+      
+      // Only include if not deleted
+      if (!student.isDeleted) {
+        students.push(student)
+      }
+    })
+    
+    return students
   } catch (error) {
     console.error('Error getting students:', error)
     return []
@@ -205,6 +203,7 @@ export const createStudent = async (
       age,
       status: 'active' as const,
       isActive: true,
+      isDeleted: false,
       parents: data.parentName ? [{
         type: 'mother' as const,
         firstName: data.parentName.split(' ')[0] || '',
@@ -283,5 +282,21 @@ export const searchStudents = async (
   } catch (error) {
     console.error('Error searching students:', error)
     return []
+  }
+}
+
+// Soft delete student
+export const deleteStudent = async (studentId: string): Promise<void> => {
+  try {
+    await updateDoc(doc(db, 'students', studentId), {
+      status: 'inactive',
+      isActive: false,
+      isDeleted: true,
+      deletedAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    })
+  } catch (error) {
+    console.error('Error deleting student:', error)
+    throw error
   }
 }

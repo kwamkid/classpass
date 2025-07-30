@@ -196,10 +196,7 @@ const StudentsPage = () => {
                         {student.studentCode}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <Link
-                          to={`/students/${student.id}`}
-                          className="flex items-center hover:text-primary-600"
-                        >
+                        <div className="flex items-center">
                           <div className="flex-shrink-0 h-10 w-10">
                             <div className="h-10 w-10 rounded-full bg-primary-100 flex items-center justify-center">
                               <span className="text-primary-600 font-medium">
@@ -215,7 +212,7 @@ const StudentsPage = () => {
                               {student.nickname && `(${student.nickname})`}
                             </div>
                           </div>
-                        </Link>
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {student.currentGrade}
