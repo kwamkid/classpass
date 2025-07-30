@@ -1,0 +1,94 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    
+    function belongsToSchool(schoolId) {
+      return isSignedIn() && getUserData().schoolId == schoolId;
+    }
+    
+    function isOwner() {
+      return isSignedIn() && getUserData().role == 'owner';
+    }
+    
+    function isAdmin() {
+      return isSignedIn() && getUserData().role in ['owner', 'admin'];
+    }
+    
+    function isTeacher() {
+      return isSignedIn() && getUserData().role in ['owner', 'admin', 'teacher'];
+    }
+    
+    // Schools collection
+    match /schools/{schoolId} {
+      allow read: if belongsToSchool(schoolId);
+      allow update: if belongsToSchool(schoolId) && isOwner();
+      allow create: if false; // Only through Cloud Functions
+      allow delete: if false; // Soft delete only
+    }
+    
+    // Users collection
+    match /users/{userId} {
+      allow read: if isSignedIn() && 
+        (request.auth.uid == userId || 
+         (belongsToSchool(resource.data.schoolId) && isAdmin()));
+      allow create: if belongsToSchool(request.resource.data.schoolId) && isAdmin();
+      allow update: if request.auth.uid == userId || 
+        (belongsToSchool(resource.data.schoolId) && isAdmin());
+      allow delete: if false; // Soft delete only
+    }
+    
+    // Students collection
+    match /students/{studentId} {
+      allow read: if belongsToSchool(resource.data.schoolId) && isTeacher();
+      allow create: if belongsToSchool(request.resource.data.schoolId) && isAdmin();
+      allow update: if belongsToSchool(resource.data.schoolId) && isAdmin();
+      allow delete: if false; // Soft delete only
+    }
+    
+    // Courses collection
+    match /courses/{courseId} {
+      allow read: if belongsToSchool(resource.data.schoolId);
+      allow create: if belongsToSchool(request.resource.data.schoolId) && isAdmin();
+      allow update: if belongsToSchool(resource.data.schoolId) && isAdmin();
+      allow delete: if false; // Soft delete only
+    }
+    
+    // Credit packages
+    match /credit_packages/{packageId} {
+      allow read: if belongsToSchool(resource.data.schoolId);
+      allow create: if belongsToSchool(request.resource.data.schoolId) && isAdmin();
+      allow update: if belongsToSchool(resource.data.schoolId) && isAdmin();
+      allow delete: if false; // Soft delete only
+    }
+    
+    // Student credits
+    match /student_credits/{creditId} {
+      allow read: if belongsToSchool(resource.data.schoolId) && isTeacher();
+      allow create: if belongsToSchool(request.resource.data.schoolId) && isAdmin();
+      allow update: if belongsToSchool(resource.data.schoolId) && isAdmin();
+      allow delete: if false; // No delete allowed
+    }
+    
+    // Attendance
+    match /attendance/{attendanceId} {
+      allow read: if belongsToSchool(resource.data.schoolId);
+      allow create: if belongsToSchool(request.resource.data.schoolId) && isTeacher();
+      allow update: if false; // Attendance records are immutable
+      allow delete: if false; // Use cancellation instead
+    }
+    
+    // Temporary rules for development (REMOVE IN PRODUCTION!)
+    // Allow read/write for testing
+    match /{document=**} {
+      allow read, write: if request.time < timestamp.date(2025, 12, 31);
+    }
+  }
+}

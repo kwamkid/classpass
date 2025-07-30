@@ -1,0 +1,69 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(schoolId) {
+      return isSignedIn() && 
+        request.auth.token.schoolId == schoolId &&
+        request.auth.token.role == 'owner';
+    }
+    
+    function isAdmin(schoolId) {
+      return isSignedIn() && 
+        request.auth.token.schoolId == schoolId &&
+        request.auth.token.role in ['owner', 'admin'];
+    }
+    
+    function belongsToSchool(schoolId) {
+      return isSignedIn() && request.auth.token.schoolId == schoolId;
+    }
+    
+    // School logos - public read, admin write
+    match /schools/{schoolId}/logo.jpg {
+      allow read: if true; // Public read for logos
+      allow write: if isAdmin(schoolId) &&
+        request.resource.size < 5 * 1024 * 1024 && // Max 5MB
+        request.resource.contentType.matches('image/.*');
+    }
+    
+    // Student photos - school members only
+    match /schools/{schoolId}/students/{studentId}/{fileName} {
+      allow read: if belongsToSchool(schoolId);
+      allow write: if isAdmin(schoolId) &&
+        request.resource.size < 10 * 1024 * 1024 && // Max 10MB
+        request.resource.contentType.matches('image/.*');
+    }
+    
+    // Documents - school members only
+    match /schools/{schoolId}/documents/{document} {
+      allow read: if belongsToSchool(schoolId);
+      allow write: if isAdmin(schoolId) &&
+        request.resource.size < 20 * 1024 * 1024; // Max 20MB
+    }
+    
+    // Receipts/Invoices - school members only
+    match /schools/{schoolId}/receipts/{receiptId} {
+      allow read: if belongsToSchool(schoolId);
+      allow write: if isAdmin(schoolId) &&
+        request.resource.size < 5 * 1024 * 1024 &&
+        request.resource.contentType.matches('application/pdf|image/.*');
+    }
+    
+    // Temporary uploads (for processing)
+    match /temp/{schoolId}/{fileName} {
+      allow write: if belongsToSchool(schoolId) &&
+        request.resource.size < 50 * 1024 * 1024; // Max 50MB
+      allow read: if belongsToSchool(schoolId);
+      // Auto-delete after 24 hours via lifecycle rule
+    }
+    
+    // Block all other access
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

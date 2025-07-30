@@ -1,0 +1,227 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base Styles */
+@layer base {
+  html {
+    @apply scroll-smooth;
+  }
+
+  body {
+    @apply bg-gray-50 text-gray-900 antialiased;
+    font-family: "Inter", "Noto Sans Thai", sans-serif;
+  }
+
+  /* Remove spinner from number inputs */
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-gray-100;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-gray-300 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-400;
+  }
+}
+
+/* Component Styles */
+@layer components {
+  /* Typography */
+  .h1 {
+    @apply text-3xl md:text-4xl font-bold text-gray-900;
+  }
+
+  .h2 {
+    @apply text-2xl md:text-3xl font-semibold text-gray-900;
+  }
+
+  .h3 {
+    @apply text-xl md:text-2xl font-semibold text-gray-800;
+  }
+
+  .h4 {
+    @apply text-lg md:text-xl font-medium text-gray-800;
+  }
+
+  .body-large {
+    @apply text-base md:text-lg text-gray-700;
+  }
+
+  .body {
+    @apply text-sm md:text-base text-gray-700;
+  }
+
+  .body-small {
+    @apply text-xs md:text-sm text-gray-600;
+  }
+
+  .caption {
+    @apply text-xs text-gray-500;
+  }
+
+  /* Form Elements */
+  .input-base {
+    @apply w-full px-3 py-2 bg-white border border-gray-300 rounded-md 
+           focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent
+           placeholder-gray-400 transition-colors;
+  }
+
+  .input-error {
+    @apply border-red-500 focus:ring-red-500;
+  }
+
+  /* Buttons */
+  .btn {
+    @apply inline-flex items-center justify-center px-4 py-2 
+           font-medium rounded-md transition-all duration-200
+           focus:outline-none focus:ring-2 focus:ring-offset-2
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-primary {
+    @apply btn bg-primary-500 text-white hover:bg-primary-600 
+           focus:ring-primary-500 active:bg-primary-700;
+  }
+
+  .btn-secondary {
+    @apply btn bg-white text-primary-600 border border-primary-200 
+           hover:bg-primary-50 focus:ring-primary-500;
+  }
+
+  .btn-outline {
+    @apply btn bg-transparent text-primary-600 border border-primary-300 
+           hover:bg-primary-50 focus:ring-primary-500;
+  }
+
+  .btn-ghost {
+    @apply btn bg-transparent text-primary-600 
+           hover:bg-primary-50 focus:ring-primary-500;
+  }
+
+  /* Cards */
+  .card {
+    @apply bg-white rounded-lg shadow-sm border border-gray-200;
+  }
+
+  .card-hover {
+    @apply card hover:shadow-md transition-shadow cursor-pointer;
+  }
+
+  /* Badges */
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full 
+           text-xs font-medium;
+  }
+
+  .badge-primary {
+    @apply badge bg-primary-100 text-primary-700 border border-primary-200;
+  }
+
+  .badge-success {
+    @apply badge bg-success-100 text-success-700 border border-success-200;
+  }
+
+  .badge-warning {
+    @apply badge bg-warning-100 text-warning-700 border border-warning-200;
+  }
+
+  .badge-error {
+    @apply badge bg-red-100 text-red-700 border border-red-200;
+  }
+}
+
+/* Utilities */
+@layer utilities {
+  /* Animations */
+  .animate-in {
+    animation: animate-in 0.2s ease-in-out;
+  }
+
+  @keyframes animate-in {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Loading spinner */
+  .spinner {
+    @apply inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin;
+  }
+
+  .spinner-primary {
+    @apply border-primary-500 border-t-transparent;
+  }
+
+  /* Gradient backgrounds */
+  .gradient-primary {
+    @apply bg-gradient-to-br from-primary-400 to-primary-600;
+  }
+
+  .gradient-orange {
+    @apply bg-gradient-to-br from-orange-400 to-orange-600;
+  }
+
+  /* Text gradients */
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary-500 to-primary-700;
+  }
+}
+
+/* Mobile specific styles */
+@media (max-width: 640px) {
+  body {
+    font-size: 14px;
+  }
+
+  .container {
+    @apply px-4;
+  }
+
+  /* Mobile safe areas */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 20px);
+  }
+
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 20px);
+  }
+}
+
+/* Print styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    @apply bg-white;
+  }
+
+  .card {
+    @apply shadow-none border;
+  }
+}
