@@ -202,19 +202,33 @@ export const createPackage = async (
     }
     
     // Prepare package data
-    const packageData = {
+    const packageData: any = {
       schoolId,
       code,
-      ...data,
+      name: data.name,
+      description: data.description || '',
+      credits: data.credits,
+      price: data.price,
+      validityType: data.validityType,
       courseName,
+      courseId: data.courseId,
       ...derived,
       displayOrder: 0,
       status: 'active' as const,
       isActive: true,
       isDeleted: false,
       isPromotion: false,
+      bonusCredits: data.bonusCredits || 0,
+      popular: data.popular || false,
+      recommended: data.recommended || false,
+      color: data.color || '#f97316',
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
+    }
+    
+    // Add validityValue only if not unlimited
+    if (data.validityType !== 'unlimited' && data.validityValue) {
+      packageData.validityValue = data.validityValue
     }
     
     // Create document
