@@ -127,6 +127,8 @@ const PurchaseCreditsPage = () => {
     return Math.max(0, selectedPackage.price - discountAmount)
   }
 
+  // แทนที่ function handlePurchase เดิมด้วยตัวนี้
+
   const handlePurchase = async () => {
     if (!selectedStudent || !selectedPackage || !user?.schoolId) return
     
@@ -142,7 +144,19 @@ const PurchaseCreditsPage = () => {
         paymentNote
       }
       
+      console.log('=== PURCHASE DEBUG ===')
+      console.log('User School ID:', user.schoolId)
+      console.log('Purchase Data:', purchaseData)
+      console.log('Selected Student:', selectedStudent)
+      console.log('Selected Package:', selectedPackage)
+      console.log('Selected Course ID:', selectedPackage.courseId)
+      console.log('Selected Course Name:', selectedPackage.courseName)
+      
       const result = await studentCreditService.purchaseCredits(user.schoolId, purchaseData)
+      
+      console.log('Purchase Result:', result)
+      console.log('Result Course ID:', result.courseId)
+      console.log('Result Status:', result.status)
       
       toast.success('ซื้อแพ็คเกจสำเร็จ!')
       

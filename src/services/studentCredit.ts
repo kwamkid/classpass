@@ -156,16 +156,16 @@ export const purchaseCredits = async (
         packageCode: creditPackage.code,
         
         // Credit info
-        totalCredits: creditPackage.totalCreditsWithBonus,
+        totalCredits: creditPackage.totalCreditsWithBonus || creditPackage.credits,
         bonusCredits: creditPackage.bonusCredits || 0,
         usedCredits: 0,
-        remainingCredits: creditPackage.totalCreditsWithBonus,
+        remainingCredits: creditPackage.totalCreditsWithBonus || creditPackage.credits,
         
         // Financial info
         originalPrice: creditPackage.price,
         discountAmount: data.discountAmount || 0,
         finalPrice: data.paymentAmount,
-        pricePerCredit: data.paymentAmount / creditPackage.totalCreditsWithBonus,
+        pricePerCredit: data.paymentAmount / (creditPackage.totalCreditsWithBonus || creditPackage.credits),
         paymentStatus: 'paid' as const,
         paymentMethod: data.paymentMethod,
         paymentDate: purchaseDate.toISOString(),
@@ -175,18 +175,14 @@ export const purchaseCredits = async (
         purchaseDate: purchaseDate.toISOString().split('T')[0],
         activationDate: purchaseDate.toISOString().split('T')[0],
         
-        // Status
-        status: 'active' as const,
+        // Status - ตรวจสอบให้แน่ใจว่า set เป็น 'active'
+        status: 'active',
         
         // Receipt
-        receiptNumber: generateReceiptNumber(),
-        
-        // Timestamps
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+        receiptNumber: generateReceiptNumber()
       }
       
-      // Add optional fields only if they exist
+      // Add optional fields
       if (data.paymentReference) {
         creditData.paymentReference = data.paymentReference
       }
@@ -202,13 +198,14 @@ export const purchaseCredits = async (
       // Create credit document
       const creditRef = collection(db, 'student_credits')
       const newCreditRef = doc(creditRef)
-      transaction.set(newCreditRef, creditData)
       
-      // Update student's total credits (optional - for quick access)
-      // transaction.update(studentRef, {
-      //   totalCredits: (student.totalCredits || 0) + creditPackage.totalCreditsWithBonus,
-      //   updatedAt: serverTimestamp()
-      // })
+      transaction.set(newCreditRef, {
+        ...creditData,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      })
+      
+      console.log('Credit data to be saved:', creditData)
       
       return {
         id: newCreditRef.id,
@@ -223,29 +220,140 @@ export const purchaseCredits = async (
   }
 }
 
-// Get all credits for a student
+// Get all credits for a student (simplified version)
 export const getStudentCredits = async (
   studentId: string,
   courseId?: string
 ): Promise<StudentCredit[]> => {
   try {
+    console.log('Getting student credits for:', { studentId, courseId })
+    
     const creditsRef = collection(db, 'student_credits')
-    let conditions = [
-      where('studentId', '==', studentId),
-      where('status', '==', 'active')
-    ]
     
-    if (courseId) {
-      conditions.push(where('courseId', '==', courseId))
-    }
-    
+    // Simple query without orderBy to avoid index requirement
     const q = query(
       creditsRef,
-      ...conditions,
-      orderBy('purchaseDate', 'desc')
+      where('studentId', '==', studentId)
     )
     
     const snapshot = await getDocs(q)
+    console.log('Raw query - Found credits:', snapshot.size)
+    
+    const allCredits: StudentCredit[] = []
+    snapshot.docs.forEach((doc, index) => {
+      const data = doc.data() as any
+      console.log(`Credit ${index + 1} raw data:`, {
+        id: doc.id,
+        studentId: data.studentId,
+        courseId: data.courseId,
+        status: data.status,
+        remainingCredits: data.remainingCredits,
+        courseName: data.courseName
+      })
+      
+      // Calculate days until expiry
+      let daysUntilExpiry = null
+      if (data.hasExpiry && data.expiryDate) {
+        const today = new Date()
+        const expiry = new Date(data.expiryDate)
+        daysUntilExpiry = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+      }
+      
+      allCredits.push({
+        id: doc.id,
+        ...data,
+        daysUntilExpiry,
+        createdAt: data.createdAt?.toDate() || new Date(),
+        updatedAt: data.updatedAt?.toDate() || new Date()
+      })
+    })
+    
+    // Filter by courseId if provided
+    let filteredCredits = allCredits
+    if (courseId) {
+      filteredCredits = allCredits.filter(c => c.courseId === courseId)
+      console.log(`Filtered by courseId ${courseId}:`, filteredCredits.length)
+    }
+    
+    // Filter only active credits with remaining balance
+    const activeCredits = filteredCredits.filter(c => 
+      c.status === 'active' && c.remainingCredits > 0
+    )
+    
+    console.log('Final active credits:', activeCredits.length)
+    console.log('Active credits details:', activeCredits)
+    
+    // Sort by purchaseDate desc on client side
+    activeCredits.sort((a, b) => 
+      new Date(b.purchaseDate).getTime() - new Date(a.purchaseDate).getTime()
+    )
+    
+    return activeCredits
+  } catch (error) {
+    console.error('Error getting student credits:', error)
+    return []
+  }
+}
+
+// Get all student credits (without filtering) - for debugging
+export const getAllStudentCreditsDebug = async (
+  studentId: string
+): Promise<StudentCredit[]> => {
+  try {
+    console.log('DEBUG: Getting ALL credits for student:', studentId)
+    
+    const creditsRef = collection(db, 'student_credits')
+    const q = query(
+      creditsRef,
+      where('studentId', '==', studentId)
+    )
+    
+    const snapshot = await getDocs(q)
+    console.log('DEBUG: Total credits found:', snapshot.size)
+    
+    const credits: StudentCredit[] = []
+    snapshot.docs.forEach((doc, index) => {
+      const data = doc.data() as any
+      console.log(`DEBUG: Credit ${index + 1}:`, {
+        id: doc.id,
+        courseId: data.courseId,
+        courseName: data.courseName,
+        status: data.status,
+        remainingCredits: data.remainingCredits,
+        totalCredits: data.totalCredits
+      })
+      
+      credits.push({
+        id: doc.id,
+        ...data,
+        createdAt: data.createdAt?.toDate() || new Date(),
+        updatedAt: data.updatedAt?.toDate() || new Date()
+      })
+    })
+    
+    return credits
+  } catch (error) {
+    console.error('DEBUG: Error getting all student credits:', error)
+    return []
+  }
+}
+
+// Get credits for all courses of a student
+export const getStudentAllCoursesCredits = async (
+  studentId: string
+): Promise<StudentCredit[]> => {
+  try {
+    console.log('Getting all courses credits for student:', studentId)
+    
+    const creditsRef = collection(db, 'student_credits')
+    const q = query(
+      creditsRef,
+      where('studentId', '==', studentId),
+      where('status', '==', 'active')
+    )
+    
+    const snapshot = await getDocs(q)
+    console.log('Found active credits:', snapshot.size)
     
     const credits: StudentCredit[] = []
     snapshot.docs.forEach(doc => {
@@ -259,18 +367,20 @@ export const getStudentCredits = async (
         daysUntilExpiry = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
       }
       
-      credits.push({
-        id: doc.id,
-        ...data,
-        daysUntilExpiry,
-        createdAt: data.createdAt?.toDate() || new Date(),
-        updatedAt: data.updatedAt?.toDate() || new Date()
-      })
+      if (data.remainingCredits > 0) {
+        credits.push({
+          id: doc.id,
+          ...data,
+          daysUntilExpiry,
+          createdAt: data.createdAt?.toDate() || new Date(),
+          updatedAt: data.updatedAt?.toDate() || new Date()
+        })
+      }
     })
     
     return credits
   } catch (error) {
-    console.error('Error getting student credits:', error)
+    console.error('Error getting student all courses credits:', error)
     return []
   }
 }
@@ -359,7 +469,7 @@ export const useCredits = async (
         usedCredits: newUsedCredits,
         remainingCredits: newRemainingCredits,
         status: newStatus,
-        lastUsedDate: serverTimestamp(),
+        lastUsedDate: new Date().toISOString().split('T')[0],
         updatedAt: serverTimestamp()
       })
     })

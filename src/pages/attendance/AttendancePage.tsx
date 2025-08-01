@@ -12,13 +12,16 @@ import {
   CreditCard,
   ChevronRight,
   BookOpen,
-  User
+  User,
+  Bug
 } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
 import * as studentService from '../../services/student'
 import * as courseService from '../../services/course'
 import * as studentCreditService from '../../services/studentCredit'
 import * as attendanceService from '../../services/attendance'
+import { collection, getDocs, query, where } from 'firebase/firestore'
+import { db } from '../../services/firebase'
 import toast from 'react-hot-toast'
 import Layout from '../../components/layout/Layout'
 
@@ -45,6 +48,34 @@ const AttendancePage = () => {
     absent: 0
   })
 
+  // Debug function
+  const debugStudentCredits = async () => {
+    if (!user?.schoolId || !selectedCourse) return
+    
+    console.log('=== DEBUG: Student Credits ===')
+    console.log('School ID:', user.schoolId)
+    console.log('Selected Course ID:', selectedCourse.id)
+    console.log('Selected Course Name:', selectedCourse.name)
+    
+    // ดึงข้อมูล credit ทั้งหมดของ school
+    const allCredits = await studentCreditService.getSchoolCredits(user.schoolId)
+    console.log('Total credits in school:', allCredits.length)
+    console.log('All credits:', allCredits)
+    
+    // ตรวจสอบ credit ของแต่ละนักเรียน
+    for (const student of students.slice(0, 2)) { // test 2 คนแรก
+      console.log(`\n--- Student: ${student.firstName} ${student.lastName} (${student.id}) ---`)
+      
+      // ใช้ debug function
+      const debugCredits = await studentCreditService.getAllStudentCreditsDebug(student.id)
+      console.log('Debug credits:', debugCredits)
+      
+      // ตรวจสอบ credit สำหรับ course นี้
+      const courseCredits = debugCredits.filter(c => c.courseId === selectedCourse.id)
+      console.log('Credits for this course:', courseCredits)
+    }
+  }
+
   useEffect(() => {
     loadInitialData()
   }, [])
@@ -57,6 +88,8 @@ const AttendancePage = () => {
     if (selectedCourse) {
       loadTodayAttendance()
       loadStudentCredits()
+      // เรียก debug function
+      debugStudentCredits()
     }
   }, [selectedCourse])
 
@@ -122,6 +155,7 @@ const AttendancePage = () => {
       
       // Load credits for all students
       for (const student of students) {
+        console.log(`Loading credits for student ${student.id}`)
         const credits = await studentCreditService.getStudentCredits(student.id, selectedCourse.id)
         console.log(`Credits for ${student.firstName} ${student.lastName}:`, credits)
         if (credits.length > 0) {
@@ -280,6 +314,49 @@ const AttendancePage = () => {
               day: 'numeric'
             })}
           </p>
+        </div>
+
+        {/* Debug Button */}
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+          <button
+            onClick={async () => {
+              console.log('=== MANUAL TEST ===')
+              
+              // Test 1: ดึงข้อมูลทั้งหมดจาก student_credits
+              const creditsRef = collection(db, 'student_credits')
+              const allSnapshot = await getDocs(creditsRef)
+              console.log('Total documents in student_credits:', allSnapshot.size)
+              
+              allSnapshot.docs.forEach((doc, index) => {
+                console.log(`Document ${index + 1}:`, {
+                  id: doc.id,
+                  data: doc.data()
+                })
+              })
+              
+              // Test 2: ดึงข้อมูลของ school นี้
+              if (user?.schoolId) {
+                const schoolQuery = query(creditsRef, where('schoolId', '==', user.schoolId))
+                const schoolSnapshot = await getDocs(schoolQuery)
+                console.log(`Credits for school ${user.schoolId}:`, schoolSnapshot.size)
+              }
+              
+              // Test 3: ดึงข้อมูลของนักเรียนแต่ละคน
+              for (const student of students.slice(0, 1)) { // test นักเรียนคนแรก
+                const studentQuery = query(creditsRef, where('studentId', '==', student.id))
+                const studentSnapshot = await getDocs(studentQuery)
+                console.log(`Credits for student ${student.firstName}:`, studentSnapshot.size)
+                
+                studentSnapshot.docs.forEach(doc => {
+                  console.log('Credit doc:', doc.id, doc.data())
+                })
+              }
+            }}
+            className="btn-secondary w-full inline-flex items-center justify-center"
+          >
+            <Bug className="w-4 h-4 mr-2" />
+            🧪 Test Query Student Credits (ดู Console)
+          </button>
         </div>
 
         {/* Course Selection */}
