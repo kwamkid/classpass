@@ -189,12 +189,44 @@
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "studentId",
+          "fieldPath": "courseId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "checkInDate",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "checkInTime",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "attendance",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "schoolId",
           "order": "ASCENDING"
         },
         {
           "fieldPath": "checkInDate",
           "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "student_credits",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "studentId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "courseId",
+          "order": "ASCENDING"
         }
       ]
     }

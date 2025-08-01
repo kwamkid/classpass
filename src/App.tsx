@@ -24,6 +24,9 @@ const PurchaseCreditsPage = lazy(() => import('./pages/credits/PurchaseCreditsPa
 const CreditHistoryPage = lazy(() => import('./pages/credits/CreditHistoryPage'))
 const ReceiptPage = lazy(() => import('./pages/credits/ReceiptPage'))
 
+// Attendance pages
+const AttendancePage = lazy(() => import('./pages/attendance/AttendancePage'))
+
 // Loading component
 const PageLoader = () => (
   <div className="min-h-screen flex items-center justify-center">
@@ -161,6 +164,13 @@ function App() {
           <Route path="/credits/receipt/:id" element={
             <ProtectedRoute>
               <ReceiptPage />
+            </ProtectedRoute>
+          } />
+          
+          {/* Attendance routes */}
+          <Route path="/attendance" element={
+            <ProtectedRoute>
+              <AttendancePage />
             </ProtectedRoute>
           } />
           
