@@ -22,6 +22,7 @@ const PackagesPage = lazy(() => import('./pages/packages/PackagesPage'))
 const AddPackagePage = lazy(() => import('./pages/packages/AddPackagePage'))
 const PurchaseCreditsPage = lazy(() => import('./pages/credits/PurchaseCreditsPage'))
 const CreditHistoryPage = lazy(() => import('./pages/credits/CreditHistoryPage'))
+const ReceiptPage = lazy(() => import('./pages/credits/ReceiptPage'))
 
 // Loading component
 const PageLoader = () => (
@@ -154,6 +155,12 @@ function App() {
           <Route path="/credits/history" element={
             <ProtectedRoute>
               <CreditHistoryPage />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/credits/receipt/:id" element={
+            <ProtectedRoute>
+              <ReceiptPage />
             </ProtectedRoute>
           } />
           

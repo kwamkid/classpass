@@ -142,7 +142,7 @@ export const purchaseCredits = async (
       )
       
       // Prepare credit data
-      const creditData = {
+      const creditData: any = {
         schoolId,
         studentId: data.studentId,
         courseId: creditPackage.courseId,
@@ -168,15 +168,12 @@ export const purchaseCredits = async (
         pricePerCredit: data.paymentAmount / creditPackage.totalCreditsWithBonus,
         paymentStatus: 'paid' as const,
         paymentMethod: data.paymentMethod,
-        paymentReference: data.paymentReference,
         paymentDate: purchaseDate.toISOString(),
-        paymentNote: data.paymentNote,
         
         // Validity
         hasExpiry: creditPackage.validityType !== 'unlimited',
         purchaseDate: purchaseDate.toISOString().split('T')[0],
         activationDate: purchaseDate.toISOString().split('T')[0],
-        expiryDate: expiryDate ? expiryDate.toISOString().split('T')[0] : null,
         
         // Status
         status: 'active' as const,
@@ -187,6 +184,19 @@ export const purchaseCredits = async (
         // Timestamps
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
+      }
+      
+      // Add optional fields only if they exist
+      if (data.paymentReference) {
+        creditData.paymentReference = data.paymentReference
+      }
+      
+      if (data.paymentNote) {
+        creditData.paymentNote = data.paymentNote
+      }
+      
+      if (expiryDate) {
+        creditData.expiryDate = expiryDate.toISOString().split('T')[0]
       }
       
       // Create credit document
