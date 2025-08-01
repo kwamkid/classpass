@@ -31,6 +31,7 @@ const AttendancePage = () => {
   const [students, setStudents] = useState<studentService.Student[]>([])
   const [courses, setCourses] = useState<courseService.Course[]>([])
   const [todayAttendance, setTodayAttendance] = useState<attendanceService.Attendance[]>([])
+  const [studentCredits, setStudentCredits] = useState<Map<string, studentCreditService.StudentCredit[]>>(new Map())
   
   // Search & Filter
   const [searchTerm, setSearchTerm] = useState('')
@@ -55,6 +56,7 @@ const AttendancePage = () => {
   useEffect(() => {
     if (selectedCourse) {
       loadTodayAttendance()
+      loadStudentCredits()
     }
   }, [selectedCourse])
 
@@ -109,6 +111,28 @@ const AttendancePage = () => {
       })
     } catch (error) {
       console.error('Error loading attendance:', error)
+    }
+  }
+
+  const loadStudentCredits = async () => {
+    if (!selectedCourse) return
+    
+    try {
+      const creditsMap = new Map<string, studentCreditService.StudentCredit[]>()
+      
+      // Load credits for all students
+      for (const student of students) {
+        const credits = await studentCreditService.getStudentCredits(student.id, selectedCourse.id)
+        console.log(`Credits for ${student.firstName} ${student.lastName}:`, credits)
+        if (credits.length > 0) {
+          creditsMap.set(student.id, credits)
+        }
+      }
+      
+      console.log('All student credits loaded:', creditsMap)
+      setStudentCredits(creditsMap)
+    } catch (error) {
+      console.error('Error loading student credits:', error)
     }
   }
 
@@ -167,7 +191,7 @@ const AttendancePage = () => {
       setCheckingIn(student.id)
       
       // Get student's credits for this course
-      const credits = await studentCreditService.getStudentCredits(student.id, selectedCourse.id)
+      const credits = studentCredits.get(student.id) || []
       
       // Find active credit with remaining balance
       const activeCredit = credits.find(c => 
@@ -181,24 +205,27 @@ const AttendancePage = () => {
         return
       }
       
-      // Check in
+      // Check in - Fix: Only pass defined values
+      const checkInData: attendanceService.CheckInData = {
+        studentId: student.id,
+        courseId: selectedCourse.id,
+        creditId: activeCredit.id,
+        checkInMethod: 'manual'
+      }
+      
       const attendance = await attendanceService.checkInStudent(
         user.schoolId,
         user.id,
-        user.displayName,
+        user.displayName || `${user.firstName} ${user.lastName}`,
         user.role,
-        {
-          studentId: student.id,
-          courseId: selectedCourse.id,
-          creditId: activeCredit.id,
-          checkInMethod: 'manual'
-        }
+        checkInData
       )
       
       toast.success(`เช็คชื่อ ${student.firstName} สำเร็จ!`)
       
-      // Reload attendance
+      // Reload attendance and credits
       await loadTodayAttendance()
+      await loadStudentCredits()
     } catch (error: any) {
       toast.error(error.message || 'เกิดข้อผิดพลาดในการเช็คชื่อ')
     } finally {
@@ -210,10 +237,17 @@ const AttendancePage = () => {
     return todayAttendance.some(a => a.studentId === studentId)
   }
 
-  const getStudentCredit = (student: studentService.Student) => {
-    // This would need to be loaded separately for each student
-    // For now, we'll show a placeholder
-    return '?'
+  const getStudentCredit = (studentId: string): number => {
+    const credits = studentCredits.get(studentId) || []
+    console.log(`Getting credits for student ${studentId}:`, credits)
+    console.log(`Selected course ID: ${selectedCourse?.id}`)
+    
+    const totalRemaining = credits
+      .filter(c => c.status === 'active' && c.courseId === selectedCourse?.id)
+      .reduce((sum, c) => sum + c.remainingCredits, 0)
+    
+    console.log(`Total remaining credits: ${totalRemaining}`)
+    return totalRemaining
   }
 
   const formatTime = (dateString: string) => {
@@ -235,11 +269,11 @@ const AttendancePage = () => {
 
   return (
     <Layout>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 md:py-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">เช็คชื่อนักเรียน</h1>
-          <p className="mt-1 text-sm text-gray-500">
+        <div className="mb-4 md:mb-8">
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900">เช็คชื่อนักเรียน</h1>
+          <p className="mt-1 text-xs md:text-sm text-gray-500">
             วันที่ {new Date().toLocaleDateString('th-TH', {
               year: 'numeric',
               month: 'long',
@@ -250,24 +284,24 @@ const AttendancePage = () => {
 
         {/* Course Selection */}
         {courses.length > 1 && (
-          <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-            <h2 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
-              <BookOpen className="w-5 h-5 mr-2 text-gray-500" />
+          <div className="bg-white rounded-lg shadow-sm p-4 md:p-6 mb-4 md:mb-6">
+            <h2 className="text-base md:text-lg font-medium text-gray-900 mb-3 md:mb-4 flex items-center">
+              <BookOpen className="w-4 h-4 md:w-5 md:h-5 mr-2 text-gray-500" />
               เลือกวิชา
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
               {courses.map(course => (
                 <button
                   key={course.id}
                   onClick={() => setSelectedCourse(course)}
-                  className={`p-4 rounded-lg border-2 transition-colors ${
+                  className={`p-3 md:p-4 rounded-lg border-2 transition-colors ${
                     selectedCourse?.id === course.id
                       ? 'border-primary-500 bg-primary-50'
                       : 'border-gray-200 hover:border-gray-300'
                   }`}
                 >
-                  <h3 className="font-medium text-gray-900">{course.name}</h3>
-                  <p className="text-sm text-gray-500 mt-1">{course.code}</p>
+                  <h3 className="font-medium text-sm md:text-base text-gray-900">{course.name}</h3>
+                  <p className="text-xs md:text-sm text-gray-500 mt-1">{course.code}</p>
                 </button>
               ))}
             </div>
@@ -276,53 +310,53 @@ const AttendancePage = () => {
 
         {selectedCourse ? (
           <>
-            {/* Stats */}
-            <div className="grid grid-cols-3 gap-4 mb-6">
-              <div className="bg-white rounded-lg shadow-sm p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-500">นักเรียนทั้งหมด</p>
-                    <p className="text-2xl font-semibold text-gray-900">
+            {/* Stats - Mobile optimized */}
+            <div className="grid grid-cols-3 gap-2 md:gap-4 mb-4 md:mb-6">
+              <div className="bg-white rounded-lg shadow-sm p-3 md:p-4">
+                <div className="flex flex-col md:flex-row items-center md:justify-between">
+                  <div className="text-center md:text-left">
+                    <p className="text-xs md:text-sm text-gray-500">นักเรียนทั้งหมด</p>
+                    <p className="text-xl md:text-2xl font-semibold text-gray-900">
                       {stats.totalStudents}
                     </p>
                   </div>
-                  <Users className="w-8 h-8 text-gray-400" />
+                  <Users className="w-6 h-6 md:w-8 md:h-8 text-gray-400 mt-2 md:mt-0" />
                 </div>
               </div>
               
-              <div className="bg-white rounded-lg shadow-sm p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-500">เช็คชื่อแล้ว</p>
-                    <p className="text-2xl font-semibold text-green-600">
+              <div className="bg-white rounded-lg shadow-sm p-3 md:p-4">
+                <div className="flex flex-col md:flex-row items-center md:justify-between">
+                  <div className="text-center md:text-left">
+                    <p className="text-xs md:text-sm text-gray-500">เช็คชื่อแล้ว</p>
+                    <p className="text-xl md:text-2xl font-semibold text-green-600">
                       {stats.checkedIn}
                     </p>
                   </div>
-                  <CheckCircle className="w-8 h-8 text-green-400" />
+                  <CheckCircle className="w-6 h-6 md:w-8 md:h-8 text-green-400 mt-2 md:mt-0" />
                 </div>
               </div>
               
-              <div className="bg-white rounded-lg shadow-sm p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-500">ยังไม่มา</p>
-                    <p className="text-2xl font-semibold text-red-600">
+              <div className="bg-white rounded-lg shadow-sm p-3 md:p-4">
+                <div className="flex flex-col md:flex-row items-center md:justify-between">
+                  <div className="text-center md:text-left">
+                    <p className="text-xs md:text-sm text-gray-500">ยังไม่มา</p>
+                    <p className="text-xl md:text-2xl font-semibold text-red-600">
                       {stats.absent}
                     </p>
                   </div>
-                  <XCircle className="w-8 h-8 text-red-400" />
+                  <XCircle className="w-6 h-6 md:w-8 md:h-8 text-red-400 mt-2 md:mt-0" />
                 </div>
               </div>
             </div>
 
             {/* Search */}
-            <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+            <div className="bg-white rounded-lg shadow-sm p-4 md:p-6 mb-4 md:mb-6">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 md:w-5 md:h-5 text-gray-400" />
                 <input
                   type="text"
                   placeholder="ค้นหาด้วยชื่อนักเรียน, ชื่อเล่น, ชื่อผู้ปกครอง, เบอร์โทร..."
-                  className="input-base pl-10 text-lg"
+                  className="input-base pl-9 md:pl-10 text-sm md:text-lg"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   autoFocus
@@ -330,26 +364,106 @@ const AttendancePage = () => {
               </div>
             </div>
 
-            {/* Student List */}
-            <div className="space-y-4">
+            {/* Student List - Mobile optimized */}
+            <div className="space-y-3 md:space-y-4">
               {filteredStudents.length === 0 ? (
-                <div className="bg-white rounded-lg shadow-sm p-12 text-center">
-                  <User className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-500">ไม่พบนักเรียนที่ค้นหา</p>
+                <div className="bg-white rounded-lg shadow-sm p-8 md:p-12 text-center">
+                  <User className="w-10 h-10 md:w-12 md:h-12 text-gray-400 mx-auto mb-3 md:mb-4" />
+                  <p className="text-sm md:text-base text-gray-500">ไม่พบนักเรียนที่ค้นหา</p>
                 </div>
               ) : (
                 filteredStudents.map(student => {
                   const checkedIn = isCheckedIn(student.id)
                   const attendance = todayAttendance.find(a => a.studentId === student.id)
+                  const remainingCredits = getStudentCredit(student.id)
                   
                   return (
                     <div
                       key={student.id}
-                      className={`bg-white rounded-lg shadow-sm p-6 ${
+                      className={`bg-white rounded-lg shadow-sm p-4 md:p-6 ${
                         checkedIn ? 'opacity-75' : ''
                       }`}
                     >
-                      <div className="flex items-center justify-between">
+                      {/* Mobile Layout */}
+                      <div className="md:hidden">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center space-x-3">
+                            {/* Student Avatar */}
+                            <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
+                              checkedIn ? 'bg-green-100' : 'bg-primary-100'
+                            }`}>
+                              {checkedIn ? (
+                                <CheckCircle className="w-6 h-6 text-green-600" />
+                              ) : (
+                                <span className="text-lg font-semibold text-primary-600">
+                                  {student.firstName[0]}
+                                </span>
+                              )}
+                            </div>
+                            
+                            {/* Student Info */}
+                            <div className="flex-1">
+                              <h3 className="font-medium text-sm text-gray-900">
+                                {student.firstName} {student.lastName}
+                              </h3>
+                              <p className="text-xs text-gray-500">
+                                {student.studentCode} • {student.currentGrade}
+                              </p>
+                            </div>
+                          </div>
+                          
+                          {/* Credit Badge */}
+                          <div className="text-right">
+                            <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                              remainingCredits === 0 ? 'bg-red-100 text-red-700' :
+                              remainingCredits <= 2 ? 'bg-yellow-100 text-yellow-700' :
+                              'bg-green-100 text-green-700'
+                            }`}>
+                              <CreditCard className="w-3 h-3 mr-1" />
+                              {remainingCredits}
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Parent Info & Action */}
+                        <div className="space-y-2">
+                          {student.parents && student.parents[0] && (
+                            <p className="text-xs text-gray-500">
+                              ผู้ปกครอง: {student.parents[0].firstName} - {student.parents[0].phone}
+                            </p>
+                          )}
+                          
+                          {checkedIn ? (
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs text-green-600">เช็คชื่อแล้ว</span>
+                              <span className="text-xs text-gray-500 flex items-center">
+                                <Clock className="w-3 h-3 mr-1" />
+                                {attendance && formatTime(attendance.checkInTime)}
+                              </span>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => handleCheckIn(student)}
+                              disabled={checkingIn === student.id || remainingCredits === 0}
+                              className="w-full btn-primary text-sm py-2"
+                            >
+                              {checkingIn === student.id ? (
+                                <>
+                                  <div className="spinner mr-2"></div>
+                                  กำลังเช็คชื่อ...
+                                </>
+                              ) : remainingCredits === 0 ? (
+                                'ไม่มีเครดิต'
+                              ) : (
+                                'เช็คชื่อ'
+                              )}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Desktop Layout */}
+                      <div className="hidden md:flex items-center justify-between">
                         <div className="flex items-center space-x-4">
                           {/* Student Avatar */}
                           <div className={`w-16 h-16 rounded-full flex items-center justify-center ${
@@ -390,7 +504,7 @@ const AttendancePage = () => {
                             <p className="text-sm text-gray-500">เครดิตคงเหลือ</p>
                             <p className="text-lg font-semibold text-primary-600 flex items-center">
                               <CreditCard className="w-4 h-4 mr-1" />
-                              {getStudentCredit(student)} ครั้ง
+                              {remainingCredits} ครั้ง
                             </p>
                           </div>
                           
@@ -406,13 +520,18 @@ const AttendancePage = () => {
                           ) : (
                             <button
                               onClick={() => handleCheckIn(student)}
-                              disabled={checkingIn === student.id}
+                              disabled={checkingIn === student.id || remainingCredits === 0}
                               className="btn-primary inline-flex items-center min-w-[120px]"
                             >
                               {checkingIn === student.id ? (
                                 <>
                                   <div className="spinner mr-2"></div>
                                   กำลังเช็คชื่อ...
+                                </>
+                              ) : remainingCredits === 0 ? (
+                                <>
+                                  <XCircle className="w-5 h-5 mr-2" />
+                                  ไม่มีเครดิต
                                 </>
                               ) : (
                                 <>
@@ -430,13 +549,44 @@ const AttendancePage = () => {
               )}
             </div>
 
-            {/* Today's Attendance Summary */}
+            {/* Today's Attendance Summary - Mobile optimized */}
             {todayAttendance.length > 0 && (
-              <div className="mt-8">
-                <h2 className="text-lg font-medium text-gray-900 mb-4">
+              <div className="mt-6 md:mt-8">
+                <h2 className="text-base md:text-lg font-medium text-gray-900 mb-3 md:mb-4">
                   รายชื่อนักเรียนที่เช็คชื่อแล้ว
                 </h2>
-                <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+                
+                {/* Mobile Card View */}
+                <div className="md:hidden space-y-3">
+                  {todayAttendance.map((attendance, index) => (
+                    <div key={attendance.id} className="bg-white rounded-lg shadow-sm p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <span className="text-sm font-medium text-gray-500">#{index + 1}</span>
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">
+                              {attendance.studentName}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {attendance.studentCode}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-medium text-gray-900">
+                            {formatTime(attendance.checkInTime)}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {attendance.checkedByName}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Desktop Table */}
+                <div className="hidden md:block bg-white rounded-lg shadow-sm overflow-hidden">
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
@@ -485,10 +635,10 @@ const AttendancePage = () => {
             )}
           </>
         ) : (
-          <div className="bg-white rounded-lg shadow-sm p-12 text-center">
-            <BookOpen className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">กรุณาเลือกวิชา</h3>
-            <p className="text-gray-500">เลือกวิชาที่ต้องการเช็คชื่อนักเรียน</p>
+          <div className="bg-white rounded-lg shadow-sm p-8 md:p-12 text-center">
+            <BookOpen className="w-10 h-10 md:w-12 md:h-12 text-gray-400 mx-auto mb-3 md:mb-4" />
+            <h3 className="text-base md:text-lg font-medium text-gray-900 mb-2">กรุณาเลือกวิชา</h3>
+            <p className="text-sm md:text-base text-gray-500">เลือกวิชาที่ต้องการเช็คชื่อนักเรียน</p>
           </div>
         )}
       </div>
