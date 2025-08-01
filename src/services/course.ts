@@ -26,7 +26,6 @@ export interface Course {
   status: 'active' | 'inactive' | 'archived'
   totalEnrolled: number
   tags?: string[]  // <-- เพิ่มบรรทัดนี้
-
   isActive: boolean
   isDeleted?: boolean
   createdAt: Date

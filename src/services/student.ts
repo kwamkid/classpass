@@ -1,3 +1,4 @@
+// src/services/student.ts
 import { 
   collection, 
   doc, 
@@ -9,8 +10,7 @@ import {
   where, 
   orderBy, 
   limit,
-  serverTimestamp,
-  Timestamp
+  serverTimestamp
 } from 'firebase/firestore'
 import { db } from './firebase'
 
@@ -140,13 +140,29 @@ export const getStudents = async (schoolId: string, status?: string): Promise<St
     // Filter out deleted students on client side
     const students: Student[] = []
     snapshot.docs.forEach(doc => {
-      const data = doc.data()
-      const student = {
+      const data = doc.data() as any
+      const student: Student = {
         id: doc.id,
-        ...data,
+        schoolId: data.schoolId,
+        studentCode: data.studentCode,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        nickname: data.nickname,
+        birthDate: data.birthDate,
+        age: data.age,
+        gender: data.gender,
+        currentGrade: data.currentGrade,
+        profileImage: data.profileImage,
+        phone: data.phone,
+        email: data.email,
+        status: data.status,
+        isActive: data.isActive,
+        isDeleted: data.isDeleted,
+        parents: data.parents,
+        address: data.address,
         createdAt: data.createdAt?.toDate() || new Date(),
         updatedAt: data.updatedAt?.toDate() || new Date()
-      } as Student
+      }
       
       // Only include if not deleted
       if (!student.isDeleted) {
@@ -167,13 +183,29 @@ export const getStudent = async (studentId: string): Promise<Student | null> => 
     const studentDoc = await getDoc(doc(db, 'students', studentId))
     
     if (studentDoc.exists()) {
-      const data = studentDoc.data()
+      const data = studentDoc.data() as any
       return {
         id: studentDoc.id,
-        ...data,
+        schoolId: data.schoolId,
+        studentCode: data.studentCode,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        nickname: data.nickname,
+        birthDate: data.birthDate,
+        age: data.age,
+        gender: data.gender,
+        currentGrade: data.currentGrade,
+        profileImage: data.profileImage,
+        phone: data.phone,
+        email: data.email,
+        status: data.status,
+        isActive: data.isActive,
+        isDeleted: data.isDeleted,
+        parents: data.parents,
+        address: data.address,
         createdAt: data.createdAt?.toDate() || new Date(),
         updatedAt: data.updatedAt?.toDate() || new Date()
-      } as Student
+      }
     }
     
     return null
