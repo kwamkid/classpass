@@ -9,6 +9,8 @@ import { ProtectedRoute } from './components/common/ProtectedRoute'
 // Lazy load pages for better performance
 const LandingPage = lazy(() => import('./pages/public/LandingPage'))
 const Login = lazy(() => import('./pages/auth/Login'))
+const Register = lazy(() => import('./pages/auth/Register'))
+const ForgotPassword = lazy(() => import('./pages/auth/ForgotPassword'))
 const Dashboard = lazy(() => import('./pages/dashboard/Dashboard'))
 const StudentsPage = lazy(() => import('./pages/students/StudentsPage'))
 const AddStudentPage = lazy(() => import('./pages/students/AddStudentPage'))
@@ -51,7 +53,7 @@ function App() {
       await checkAuth()
     }
     initAuth()
-  }, []) // Run only once on mount
+  }, [checkAuth])
   
   // Load school data when user is authenticated
   useEffect(() => {
@@ -95,6 +97,8 @@ function App() {
           {/* Public routes */}
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
           
           {/* Protected routes - ต้อง login ก่อน */}
           <Route path="/dashboard" element={
