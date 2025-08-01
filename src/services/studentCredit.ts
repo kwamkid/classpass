@@ -268,17 +268,25 @@ export const getStudentCredits = async (
       })
     })
     
+    console.log('All credits before filtering:', allCredits.length, allCredits)
+    
     // Filter by courseId if provided
     let filteredCredits = allCredits
     if (courseId) {
-      filteredCredits = allCredits.filter(c => c.courseId === courseId)
+      console.log(`Filtering by courseId: ${courseId}`)
+      filteredCredits = allCredits.filter(c => {
+        console.log(`Comparing: ${c.courseId} === ${courseId} ?`, c.courseId === courseId)
+        return c.courseId === courseId
+      })
       console.log(`Filtered by courseId ${courseId}:`, filteredCredits.length)
     }
     
     // Filter only active credits with remaining balance
-    const activeCredits = filteredCredits.filter(c => 
-      c.status === 'active' && c.remainingCredits > 0
-    )
+    console.log('Before active filter:', filteredCredits)
+    const activeCredits = filteredCredits.filter(c => {
+      console.log(`Checking credit: status=${c.status}, remaining=${c.remainingCredits}`)
+      return c.status === 'active' && c.remainingCredits > 0
+    })
     
     console.log('Final active credits:', activeCredits.length)
     console.log('Active credits details:', activeCredits)

@@ -138,7 +138,7 @@ export const checkInStudent = async (
         throw new Error('นักเรียนเช็คชื่อแล้ววันนี้')
       }
       
-      // Create attendance record
+      /// Create attendance record
       const now = new Date()
       const attendanceData = {
         schoolId,
@@ -149,9 +149,9 @@ export const checkInStudent = async (
         // Student & Course Info
         studentCode: student.studentCode,
         studentName: `${student.firstName} ${student.lastName}`,
-        studentNickname: student.nickname,
+        studentNickname: student.nickname || '',
         courseName: course.name,
-        courseCode: course.code,
+        courseCode: course.code || '',
         
         // Check-in Information
         checkInDate: today,
@@ -176,11 +176,13 @@ export const checkInStudent = async (
         checkedByName: userName,
         checkedByRole: userRole,
         
-        // Notes
-        teacherNotes: data.teacherNotes,
-        
         // Timestamps
         createdAt: serverTimestamp()
+      }
+      
+      // Only add teacherNotes if it exists
+      if (data.teacherNotes) {
+        (attendanceData as any).teacherNotes = data.teacherNotes
       }
       
       // Create attendance document
