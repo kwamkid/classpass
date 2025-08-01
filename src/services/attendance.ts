@@ -9,7 +9,8 @@ import {
   where, 
   orderBy,
   serverTimestamp,
-  runTransaction
+  runTransaction,
+  deleteDoc
 } from 'firebase/firestore'
 import { db } from './firebase'
 import * as studentCreditService from './studentCredit'
@@ -124,22 +125,9 @@ export const checkInStudent = async (
         }
       }
       
-      // Check if already checked in today
-      const today = new Date().toISOString().split('T')[0]
-      const existingAttendanceQuery = query(
-        collection(db, 'attendance'),
-        where('studentId', '==', data.studentId),
-        where('courseId', '==', data.courseId),
-        where('checkInDate', '==', today)
-      )
-      const existingAttendance = await getDocs(existingAttendanceQuery)
-      
-      if (!existingAttendance.empty) {
-        throw new Error('นักเรียนเช็คชื่อแล้ววันนี้')
-      }
-      
-      /// Create attendance record
+      // Create attendance record
       const now = new Date()
+      const today = now.toISOString().split('T')[0]
       const attendanceData = {
         schoolId,
         studentId: data.studentId,
@@ -304,7 +292,7 @@ export const getAttendanceHistory = async (
   }
 }
 
-// Cancel attendance (undo check-in)
+// Cancel attendance (undo check-in) - ลบ record และคืนเครดิต
 export const cancelAttendance = async (
   attendanceId: string,
   reason: string
@@ -316,7 +304,7 @@ export const cancelAttendance = async (
       const attendanceDoc = await transaction.get(attendanceRef)
       
       if (!attendanceDoc.exists()) {
-        throw new Error('Attendance record not found')
+        throw new Error('ไม่พบข้อมูลการเช็คชื่อ')
       }
       
       const attendance = attendanceDoc.data()
@@ -326,29 +314,24 @@ export const cancelAttendance = async (
       const creditDoc = await transaction.get(creditRef)
       
       if (!creditDoc.exists()) {
-        throw new Error('Credit record not found')
+        throw new Error('ไม่พบข้อมูลเครดิต')
       }
       
       const credit = creditDoc.data()
       
-      // Update attendance to cancelled
-      transaction.update(attendanceRef, {
-        status: 'cancelled',
-        cancelledAt: serverTimestamp(),
-        cancelReason: reason,
-        updatedAt: serverTimestamp()
-      })
+      // Delete attendance record (ลบทิ้งเลย ไม่เก็บ status)
+      transaction.delete(attendanceRef)
       
-      // Refund credit
+      // Refund credit (คืนเครดิต)
       transaction.update(creditRef, {
         usedCredits: Math.max(0, credit.usedCredits - attendance.creditsDeducted),
         remainingCredits: credit.remainingCredits + attendance.creditsDeducted,
-        status: credit.status === 'depleted' ? 'active' : credit.status,
+        status: credit.remainingCredits + attendance.creditsDeducted > 0 ? 'active' : credit.status,
         updatedAt: serverTimestamp()
       })
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error cancelling attendance:', error)
-    throw error
+    throw new Error(error.message || 'เกิดข้อผิดพลาดในการยกเลิกการเช็คชื่อ')
   }
 }

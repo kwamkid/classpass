@@ -12,8 +12,7 @@ import {
   CreditCard,
   ChevronRight,
   BookOpen,
-  User,
-  Bug
+  User
 } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
 import * as studentService from '../../services/student'
@@ -24,196 +23,6 @@ import { collection, getDocs, query, where } from 'firebase/firestore'
 import { db } from '../../services/firebase'
 import toast from 'react-hot-toast'
 import Layout from '../../components/layout/Layout'
-
-// Credit Debug Panel Component
-const CreditDebugPanel = ({ students, selectedCourse, user }) => {
-  const [debugInfo, setDebugInfo] = useState({
-    studentsInPage: [],
-    creditsInDb: [],
-    matches: [],
-    problems: []
-  })
-  const [isLoading, setIsLoading] = useState(false)
-  
-  const runDebug = async () => {
-    if (!user?.schoolId || !selectedCourse) return
-    
-    setIsLoading(true)
-    console.log('🔍 Starting Credit Debug...')
-    
-    try {
-      // 1. Get all students in current page
-      const pageStudents = students.map(s => ({
-        id: s.id,
-        name: `${s.firstName} ${s.lastName}`,
-        code: s.studentCode
-      }))
-      
-      // 2. Get all credits from database
-      const creditsRef = collection(db, 'student_credits')
-      const schoolQuery = query(creditsRef, where('schoolId', '==', user.schoolId))
-      const creditsSnapshot = await getDocs(schoolQuery)
-      
-      const dbCredits = []
-      creditsSnapshot.docs.forEach(doc => {
-        const data = doc.data()
-        dbCredits.push({
-          docId: doc.id,
-          studentId: data.studentId,
-          studentName: data.studentName,
-          courseId: data.courseId,
-          courseName: data.courseName,
-          remaining: data.remainingCredits,
-          status: data.status
-        })
-      })
-      
-      // 3. Check matches
-      const matches = []
-      const problems = []
-      
-      // Check each student if they have credits
-      pageStudents.forEach(student => {
-        const studentCredits = dbCredits.filter(c => c.studentId === student.id)
-        
-        if (studentCredits.length === 0) {
-          problems.push({
-            type: 'NO_CREDITS',
-            message: `${student.name} (${student.id}) ไม่มีเครดิตเลย`,
-            studentId: student.id
-          })
-        } else {
-          // Check if has credits for selected course
-          const courseCredits = studentCredits.filter(c => 
-            c.courseId === selectedCourse.id && 
-            c.status === 'active' && 
-            c.remaining > 0
-          )
-          
-          if (courseCredits.length === 0) {
-            problems.push({
-              type: 'NO_COURSE_CREDITS',
-              message: `${student.name} ไม่มีเครดิตสำหรับวิชา ${selectedCourse.name}`,
-              studentId: student.id
-            })
-          } else {
-            matches.push({
-              student: student.name,
-              studentId: student.id,
-              credits: courseCredits
-            })
-          }
-        }
-      })
-      
-      // Check orphaned credits (credits without matching students)
-      dbCredits.forEach(credit => {
-        if (credit.courseId === selectedCourse.id && credit.status === 'active' && credit.remaining > 0) {
-          const hasStudent = pageStudents.some(s => s.id === credit.studentId)
-          if (!hasStudent) {
-            problems.push({
-              type: 'ORPHANED_CREDIT',
-              message: `เครดิตของ ${credit.studentName} (${credit.studentId}) ไม่มีนักเรียนในหน้านี้`,
-              credit: credit
-            })
-          }
-        }
-      })
-      
-      setDebugInfo({
-        studentsInPage: pageStudents,
-        creditsInDb: dbCredits,
-        matches,
-        problems
-      })
-      
-      // Log to console
-      console.log('📊 Debug Results:', {
-        studentsInPage: pageStudents,
-        creditsInDb: dbCredits.filter(c => c.courseId === selectedCourse.id),
-        matches,
-        problems
-      })
-    } catch (error) {
-      console.error('Error in debug:', error)
-      toast.error('เกิดข้อผิดพลาดในการตรวจสอบ')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-  
-  return (
-    <div className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-4 mb-4">
-      <h3 className="font-semibold text-yellow-800 mb-3 flex items-center">
-        <Bug className="w-5 h-5 mr-2" />
-        Credit Debug Panel
-      </h3>
-      
-      <button
-        onClick={runDebug}
-        disabled={isLoading}
-        className="btn-primary mb-4 inline-flex items-center"
-      >
-        {isLoading ? (
-          <>
-            <div className="spinner mr-2"></div>
-            กำลังตรวจสอบ...
-          </>
-        ) : (
-          <>
-            <Search className="w-4 h-4 mr-2" />
-            ตรวจสอบปัญหาเครดิต
-          </>
-        )}
-      </button>
-      
-      {debugInfo.problems.length > 0 && (
-        <div className="mt-4 space-y-2">
-          <h4 className="font-medium text-red-700">❌ พบปัญหา:</h4>
-          {debugInfo.problems.map((problem, idx) => (
-            <div key={idx} className="text-sm bg-red-50 border border-red-200 p-3 rounded">
-              <p className="text-red-700 font-medium">{problem.type}</p>
-              <p className="text-red-600">{problem.message}</p>
-              {problem.type === 'NO_CREDITS' && (
-                <Link 
-                  to={`/credits/purchase?studentId=${problem.studentId}`}
-                  className="text-xs text-blue-600 hover:underline mt-1 inline-block"
-                >
-                  → ซื้อเครดิตให้นักเรียนนี้
-                </Link>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-      
-      {debugInfo.matches.length > 0 && (
-        <div className="mt-4">
-          <h4 className="font-medium text-green-700">✅ เครดิตที่พบ:</h4>
-          <div className="space-y-1 mt-2">
-            {debugInfo.matches.map((match, idx) => (
-              <div key={idx} className="text-sm bg-green-50 border border-green-200 p-2 rounded">
-                <span className="text-green-700 font-medium">{match.student}:</span>
-                <span className="text-green-600 ml-2">
-                  {match.credits.map(c => `${c.remaining} ครั้ง`).join(', ')}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-      
-      <div className="mt-4 text-xs text-gray-600 bg-gray-50 p-2 rounded">
-        <p className="font-medium mb-1">📌 หมายเหตุ:</p>
-        <ul className="list-disc list-inside space-y-1">
-          <li>ตรวจสอบว่า Student ID ในเครดิตตรงกับนักเรียนในระบบ</li>
-          <li>ตรวจสอบว่าเครดิตผูกกับ Course ID ที่ถูกต้อง</li>
-          <li>เครดิตต้องมี status = 'active' และ remainingCredits มากกว่า 0</li>
-        </ul>
-      </div>
-    </div>
-  )
-}
 
 const AttendancePage = () => {
   const { user } = useAuthStore()
@@ -237,9 +46,6 @@ const AttendancePage = () => {
     checkedIn: 0,
     absent: 0
   })
-
-  // Debug state
-  const [showDebug, setShowDebug] = useState(false)
 
   useEffect(() => {
     loadInitialData()
@@ -314,9 +120,6 @@ const AttendancePage = () => {
     if (!selectedCourse || !user?.schoolId || students.length === 0) return
     
     try {
-      console.log('🔄 Loading student credits (Optimized with Index)...')
-      console.log('Number of students:', students.length)
-      
       const creditsMap = new Map<string, studentCreditService.StudentCredit[]>()
       
       // Single optimized query using index
@@ -329,7 +132,6 @@ const AttendancePage = () => {
       )
       
       const snapshot = await getDocs(creditsQuery)
-      console.log(`📊 Found ${snapshot.size} active credits for ${selectedCourse.name}`)
       
       // Create Set for O(1) lookup performance
       const studentIdSet = new Set(students.map(s => s.id))
@@ -352,15 +154,6 @@ const AttendancePage = () => {
           existingCredits.push(credit)
           creditsMap.set(data.studentId, existingCredits)
         }
-      })
-      
-      console.log(`✅ Loaded credits for ${creditsMap.size} students`)
-      
-      // Log summary for debugging
-      creditsMap.forEach((credits, studentId) => {
-        const student = students.find(s => s.id === studentId)
-        const total = credits.reduce((sum, c) => sum + c.remainingCredits, 0)
-        console.log(`  - ${student?.firstName || 'Unknown'}: ${credits.length} packages, ${total} total credits`)
       })
       
       setStudentCredits(creditsMap)
@@ -411,13 +204,6 @@ const AttendancePage = () => {
   const handleCheckIn = async (student: studentService.Student) => {
     if (!user || !selectedCourse) {
       toast.error('กรุณาเลือกวิชาก่อน')
-      return
-    }
-    
-    // Check if already checked in
-    const alreadyCheckedIn = todayAttendance.some(a => a.studentId === student.id)
-    if (alreadyCheckedIn) {
-      toast.error('นักเรียนเช็คชื่อแล้ววันนี้')
       return
     }
     
@@ -480,6 +266,25 @@ const AttendancePage = () => {
     return totalRemaining
   }
 
+  const handleCancelAttendance = async (attendance: attendanceService.Attendance) => {
+    const confirmCancel = window.confirm(
+      `ต้องการยกเลิกการเช็คชื่อของ ${attendance.studentName} หรือไม่?\nเครดิต ${attendance.creditsDeducted} ครั้งจะถูกคืนให้`
+    )
+    
+    if (!confirmCancel) return
+    
+    try {
+      await attendanceService.cancelAttendance(attendance.id, 'ยกเลิกโดยผู้ใช้')
+      toast.success(`ยกเลิกการเช็คชื่อและคืนเครดิตให้ ${attendance.studentName} แล้ว`)
+      
+      // Reload data
+      await loadTodayAttendance()
+      await loadStudentCredits()
+    } catch (error) {
+      toast.error('ไม่สามารถยกเลิกการเช็คชื่อได้')
+    }
+  }
+
   const formatTime = (dateString: string) => {
     return new Date(dateString).toLocaleTimeString('th-TH', {
       hour: '2-digit',
@@ -511,26 +316,6 @@ const AttendancePage = () => {
             })}
           </p>
         </div>
-
-        {/* Debug Toggle */}
-        <div className="mb-4">
-          <button
-            onClick={() => setShowDebug(!showDebug)}
-            className="text-sm text-gray-600 hover:text-gray-900 inline-flex items-center"
-          >
-            <Bug className="w-4 h-4 mr-1" />
-            {showDebug ? 'ซ่อน' : 'แสดง'} Debug Panel
-          </button>
-        </div>
-
-        {/* Debug Panel */}
-        {showDebug && selectedCourse && (
-          <CreditDebugPanel 
-            students={filteredStudents}
-            selectedCourse={selectedCourse}
-            user={user}
-          />
-        )}
 
         {/* Course Selection */}
         {courses.length > 1 && (
@@ -810,7 +595,7 @@ const AttendancePage = () => {
                 <div className="md:hidden space-y-3">
                   {todayAttendance.map((attendance, index) => (
                     <div key={attendance.id} className="bg-white rounded-lg shadow-sm p-4">
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center space-x-3">
                           <span className="text-sm font-medium text-gray-500">#{index + 1}</span>
                           <div>
@@ -831,6 +616,12 @@ const AttendancePage = () => {
                           </p>
                         </div>
                       </div>
+                      <button
+                        onClick={() => handleCancelAttendance(attendance)}
+                        className="w-full mt-2 text-red-600 hover:text-red-900 text-sm font-medium py-1 border border-red-200 rounded hover:bg-red-50"
+                      >
+                        ยกเลิกการเช็คชื่อ
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -851,6 +642,9 @@ const AttendancePage = () => {
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           ผู้เช็คชื่อ
+                        </th>
+                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          จัดการ
                         </th>
                       </tr>
                     </thead>
@@ -875,6 +669,14 @@ const AttendancePage = () => {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             {attendance.checkedByName}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-center">
+                            <button
+                              onClick={() => handleCancelAttendance(attendance)}
+                              className="text-red-600 hover:text-red-900 text-sm font-medium"
+                            >
+                              ยกเลิก
+                            </button>
                           </td>
                         </tr>
                       ))}
