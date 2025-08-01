@@ -2,7 +2,8 @@ import {
   signInWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
-  sendPasswordResetEmail
+  sendPasswordResetEmail,
+  type User as FirebaseUser
 } from 'firebase/auth'
 import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore'
 import { auth, db } from './firebase'
@@ -40,6 +41,16 @@ export const getUserData = async (uid: string): Promise<User | null> => {
     console.error('Error getting user data:', error)
     return null
   }
+}
+
+// Wait for auth to be ready
+const waitForAuth = (): Promise<FirebaseUser | null> => {
+  return new Promise((resolve) => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      unsubscribe()
+      resolve(user)
+    })
+  })
 }
 
 // Login with email and password
@@ -106,6 +117,7 @@ export const resetPassword = async (email: string): Promise<void> => {
 // Subscribe to auth state changes
 export const subscribeToAuthState = (callback: (user: User | null) => void) => {
   return onAuthStateChanged(auth, async (firebaseUser) => {
+    console.log('🔥 Firebase auth state changed:', firebaseUser?.email || 'null')
     if (firebaseUser) {
       const userData = await getUserData(firebaseUser.uid)
       callback(userData)
@@ -115,15 +127,19 @@ export const subscribeToAuthState = (callback: (user: User | null) => void) => {
   })
 }
 
-// Check if user is authenticated
-export const isAuthenticated = (): boolean => {
-  return !!auth.currentUser
+// Check if user is authenticated (wait for auth to be ready)
+export const isAuthenticated = async (): Promise<boolean> => {
+  const user = await waitForAuth()
+  return !!user
 }
 
-// Get current user
+// Get current user (wait for auth to be ready)
 export const getCurrentUser = async (): Promise<User | null> => {
-  if (auth.currentUser) {
-    return getUserData(auth.currentUser.uid)
+  const firebaseUser = await waitForAuth()
+  console.log('🔥 Firebase current user:', firebaseUser?.email || 'null')
+  
+  if (firebaseUser) {
+    return getUserData(firebaseUser.uid)
   }
   return null
 }

@@ -38,13 +38,16 @@ const PageLoader = () => (
 )
 
 function App() {
-  const { checkAuth, user } = useAuthStore()
+  const { checkAuth, user, isLoading } = useAuthStore()
   const { loadSchool } = useSchoolStore()
   
   // Check authentication status on app load
   useEffect(() => {
-    checkAuth()
-  }, [checkAuth])
+    const initAuth = async () => {
+      await checkAuth()
+    }
+    initAuth()
+  }, []) // Run only once on mount
   
   // Load school data when user is authenticated
   useEffect(() => {
@@ -52,6 +55,11 @@ function App() {
       loadSchool(user.schoolId)
     }
   }, [user, loadSchool])
+  
+  // Show loading spinner while checking auth
+  if (isLoading) {
+    return <PageLoader />
+  }
   
   return (
     <>
