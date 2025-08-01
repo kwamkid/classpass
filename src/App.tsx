@@ -14,6 +14,7 @@ const ForgotPassword = lazy(() => import('./pages/auth/ForgotPassword'))
 const Dashboard = lazy(() => import('./pages/dashboard/Dashboard'))
 const StudentsPage = lazy(() => import('./pages/students/StudentsPage'))
 const AddStudentPage = lazy(() => import('./pages/students/AddStudentPage'))
+const EditStudentPage = lazy(() => import('./pages/students/EditStudentPage'))
 const StudentDetailPage = lazy(() => import('./pages/students/StudentDetailPage'))
 const CoursesPage = lazy(() => import('./pages/courses/CoursesPage'))
 const AddCoursePage = lazy(() => import('./pages/courses/AddCoursePage'))
@@ -123,6 +124,12 @@ function App() {
           <Route path="/students/:id" element={
             <ProtectedRoute>
               <StudentDetailPage />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/students/:id/edit" element={
+            <ProtectedRoute>
+              <EditStudentPage />
             </ProtectedRoute>
           } />
           

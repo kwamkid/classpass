@@ -14,7 +14,8 @@ import {
   ChevronDown,
   User,
   Bell,
-  Receipt
+  Receipt,
+  Package
 } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
 import { useSchoolStore } from '../../stores/schoolStore'
@@ -42,136 +43,200 @@ const Layout = ({ children }: LayoutProps) => {
     }
   }
 
-  const menuItems = [
-    { 
-      path: '/dashboard', 
-      icon: Home, 
-      label: 'หน้าหลัก',
-      roles: ['owner', 'admin', 'teacher']
+  // Menu items with sections
+  const menuSections = [
+    {
+      title: 'เมนูหลัก',
+      items: [
+        { 
+          path: '/dashboard', 
+          icon: Home, 
+          label: 'หน้าหลัก',
+          roles: ['owner', 'admin', 'teacher'],
+          color: 'text-blue-600'
+        },
+        { 
+          path: '/attendance', 
+          icon: Calendar, 
+          label: 'เช็คชื่อ',
+          roles: ['owner', 'admin', 'teacher'],
+          color: 'text-green-600'
+        }
+      ]
     },
-    { 
-      path: '/students', 
-      icon: Users, 
-      label: 'นักเรียน',
-      roles: ['owner', 'admin', 'teacher']
+    {
+      title: 'จัดการข้อมูล',
+      items: [
+        { 
+          path: '/students', 
+          icon: Users, 
+          label: 'นักเรียน',
+          roles: ['owner', 'admin', 'teacher'],
+          color: 'text-purple-600'
+        },
+        { 
+          path: '/courses', 
+          icon: BookOpen, 
+          label: 'วิชาเรียน',
+          roles: ['owner', 'admin'],
+          color: 'text-indigo-600'
+        },
+        { 
+          path: '/packages', 
+          icon: Package, 
+          label: 'แพ็คเกจ',
+          roles: ['owner', 'admin'],
+          color: 'text-orange-600'
+        }
+      ]
     },
-    { 
-      path: '/courses', 
-      icon: BookOpen, 
-      label: 'วิชาเรียน',
-      roles: ['owner', 'admin']
+    {
+      title: 'การเงิน',
+      items: [
+        { 
+          path: '/credits/history', 
+          icon: Receipt, 
+          label: 'ประวัติการซื้อ',
+          roles: ['owner', 'admin'],
+          color: 'text-emerald-600'
+        },
+        { 
+          path: '/reports', 
+          icon: BarChart3, 
+          label: 'รายงาน',
+          roles: ['owner', 'admin'],
+          color: 'text-pink-600'
+        }
+      ]
     },
-    { 
-      path: '/packages', 
-      icon: CreditCard, 
-      label: 'แพ็คเกจ',
-      roles: ['owner', 'admin']
-    },
-    { 
-      path: '/credits/history', 
-      icon: Receipt, 
-      label: 'ประวัติการซื้อ',
-      roles: ['owner', 'admin']
-    },
-    { 
-      path: '/attendance', 
-      icon: Calendar, 
-      label: 'เช็คชื่อ',
-      roles: ['owner', 'admin', 'teacher']
-    },
-    { 
-      path: '/reports', 
-      icon: BarChart3, 
-      label: 'รายงาน',
-      roles: ['owner', 'admin']
-    },
-    { 
-      path: '/settings', 
-      icon: Settings, 
-      label: 'ตั้งค่า',
-      roles: ['owner', 'admin']
+    {
+      title: 'ระบบ',
+      items: [
+        { 
+          path: '/settings', 
+          icon: Settings, 
+          label: 'ตั้งค่า',
+          roles: ['owner', 'admin'],
+          color: 'text-gray-600'
+        }
+      ]
     }
   ]
 
-  // Filter menu items based on user role
-  const filteredMenuItems = menuItems.filter(item => 
-    item.roles.includes(user?.role || '')
-  )
-
   const isActivePath = (path: string) => {
     return location.pathname === path || location.pathname.startsWith(path + '/')
+  }
+
+  // Render menu section
+  const renderMenuSection = (section: typeof menuSections[0], isMobile = false) => {
+    const filteredItems = section.items.filter(item => 
+      item.roles.includes(user?.role || '')
+    )
+
+    if (filteredItems.length === 0) return null
+
+    return (
+      <div key={section.title} className="mb-6">
+        <h3 className="px-3 mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+          {section.title}
+        </h3>
+        <div className="space-y-1">
+          {filteredItems.map((item) => {
+            const Icon = item.icon
+            const isActive = isActivePath(item.path)
+            
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                onClick={() => isMobile && setSidebarOpen(false)}
+                className={`
+                  flex items-center px-3 py-2.5 text-base font-medium rounded-lg transition-all duration-150
+                  ${isActive 
+                    ? 'bg-primary-50 text-primary-700 shadow-sm' 
+                    : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
+                  }
+                `}
+              >
+                <Icon className={`w-5 h-5 mr-3 ${isActive ? 'text-primary-600' : item.color}`} />
+                <span className="text-sm font-medium">{item.label}</span>
+              </Link>
+            )
+          })}
+        </div>
+      </div>
+    )
   }
 
   return (
     <div className="flex h-screen bg-gray-50">
       {/* Sidebar for desktop */}
       <div className="hidden lg:flex lg:flex-shrink-0">
-        <div className="flex flex-col w-64">
+        <div className="flex flex-col w-72">
           <div className="flex flex-col flex-grow bg-white border-r border-gray-200 overflow-y-auto">
-            {/* Logo */}
-            <div className="flex items-center h-16 px-4 border-b border-gray-200">
-              <Link to="/dashboard" className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-primary-500 rounded-lg flex items-center justify-center">
-                  <span className="text-white font-bold text-xl">C</span>
-                </div>
-                <span className="text-xl font-bold text-gray-900">ClassPass</span>
-              </Link>
-            </div>
-
-            {/* School name */}
-            <div className="px-4 py-3 border-b border-gray-200">
-              <p className="text-sm font-medium text-gray-900">{school?.name}</p>
-              <p className="text-xs text-gray-500">
-                {user?.role === 'owner' ? 'เจ้าของ' : 
-                 user?.role === 'admin' ? 'ผู้ดูแลระบบ' : 'ครูผู้สอน'}
-              </p>
+            {/* Logo & School Info */}
+            <div className="sticky top-0 z-10 bg-white border-b border-gray-200">
+              <div className="flex items-center h-16 px-4">
+                <Link to="/dashboard" className="flex items-center space-x-3">
+                  {school?.logo ? (
+                    <img 
+                      src={school.logo} 
+                      alt={school.name}
+                      className="w-10 h-10 rounded-lg object-cover"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 bg-primary-500 rounded-lg flex items-center justify-center">
+                      <span className="text-white font-bold text-xl">C</span>
+                    </div>
+                  )}
+                  <span className="text-xl font-bold text-gray-900">ClassPass</span>
+                </Link>
+              </div>
+              
+              <div className="px-4 py-3">
+                <p className="text-sm font-medium text-gray-900">{school?.name}</p>
+                <p className="text-xs text-gray-500">
+                  {user?.role === 'owner' ? 'เจ้าของ' : 
+                   user?.role === 'admin' ? 'ผู้ดูแลระบบ' : 'ครูผู้สอน'}
+                </p>
+              </div>
             </div>
 
             {/* Navigation */}
-            <nav className="flex-1 px-2 py-4 space-y-1">
-              {filteredMenuItems.map((item) => {
-                const Icon = item.icon
-                const isActive = isActivePath(item.path)
-                
-                return (
-                  <Link
-                    key={item.path}
-                    to={item.path}
-                    className={`
-                      flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors
-                      ${isActive 
-                        ? 'bg-primary-50 text-primary-700 border-l-4 border-primary-500' 
-                        : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
-                      }
-                    `}
-                  >
-                    <Icon className={`w-5 h-5 mr-3 ${isActive ? 'text-primary-600' : 'text-gray-400'}`} />
-                    {item.label}
-                  </Link>
-                )
-              })}
+            <nav className="flex-1 px-3 py-4">
+              {menuSections.map(section => renderMenuSection(section))}
             </nav>
 
             {/* User info */}
-            <div className="p-4 border-t border-gray-200">
-              <div className="flex items-center">
-                <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
-                  <span className="text-primary-600 font-semibold">
-                    {user?.firstName?.[0] || 'U'}
-                  </span>
+            <div className="sticky bottom-0 bg-white border-t border-gray-200">
+              <div className="p-4">
+                <div className="flex items-center">
+                  {user?.profileImage ? (
+                    <img 
+                      src={user.profileImage} 
+                      alt={user.displayName}
+                      className="w-10 h-10 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
+                      <span className="text-primary-600 font-semibold">
+                        {user?.firstName?.[0] || 'U'}
+                      </span>
+                    </div>
+                  )}
+                  <div className="ml-3 flex-1">
+                    <p className="text-sm font-medium text-gray-900">{user?.displayName}</p>
+                    <p className="text-xs text-gray-500">{user?.email}</p>
+                  </div>
                 </div>
-                <div className="ml-3 flex-1">
-                  <p className="text-sm font-medium text-gray-900">{user?.displayName}</p>
-                  <p className="text-xs text-gray-500">{user?.email}</p>
-                </div>
+                <button
+                  onClick={handleLogout}
+                  className="mt-3 w-full flex items-center justify-center px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                >
+                  <LogOut className="w-4 h-4 mr-2" />
+                  ออกจากระบบ
+                </button>
               </div>
-              <button
-                onClick={handleLogout}
-                className="mt-3 w-full flex items-center justify-center px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors"
-              >
-                <LogOut className="w-4 h-4 mr-2" />
-                ออกจากระบบ
-              </button>
             </div>
           </div>
         </div>
@@ -184,12 +249,20 @@ const Layout = ({ children }: LayoutProps) => {
             className="fixed inset-0 z-40 bg-gray-600 bg-opacity-75 lg:hidden"
             onClick={() => setSidebarOpen(false)}
           />
-          <div className="fixed inset-y-0 left-0 z-50 flex flex-col w-64 bg-white lg:hidden">
+          <div className="fixed inset-y-0 left-0 z-50 flex flex-col w-72 bg-white lg:hidden">
             <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200">
               <Link to="/dashboard" className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-primary-500 rounded-lg flex items-center justify-center">
-                  <span className="text-white font-bold text-xl">C</span>
-                </div>
+                {school?.logo ? (
+                  <img 
+                    src={school.logo} 
+                    alt={school.name}
+                    className="w-10 h-10 rounded-lg object-cover"
+                  />
+                ) : (
+                  <div className="w-10 h-10 bg-primary-500 rounded-lg flex items-center justify-center">
+                    <span className="text-white font-bold text-xl">C</span>
+                  </div>
+                )}
                 <span className="text-xl font-bold text-gray-900">ClassPass</span>
               </Link>
               <button
@@ -200,7 +273,7 @@ const Layout = ({ children }: LayoutProps) => {
               </button>
             </div>
 
-            {/* Mobile menu content - same as desktop */}
+            {/* Mobile menu content */}
             <div className="flex-1 overflow-y-auto">
               <div className="px-4 py-3 border-b border-gray-200">
                 <p className="text-sm font-medium text-gray-900">{school?.name}</p>
@@ -210,51 +283,40 @@ const Layout = ({ children }: LayoutProps) => {
                 </p>
               </div>
 
-              <nav className="px-2 py-4 space-y-1">
-                {filteredMenuItems.map((item) => {
-                  const Icon = item.icon
-                  const isActive = isActivePath(item.path)
-                  
-                  return (
-                    <Link
-                      key={item.path}
-                      to={item.path}
-                      onClick={() => setSidebarOpen(false)}
-                      className={`
-                        flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors
-                        ${isActive 
-                          ? 'bg-primary-50 text-primary-700 border-l-4 border-primary-500' 
-                          : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
-                        }
-                      `}
-                    >
-                      <Icon className={`w-5 h-5 mr-3 ${isActive ? 'text-primary-600' : 'text-gray-400'}`} />
-                      {item.label}
-                    </Link>
-                  )
-                })}
+              <nav className="px-3 py-4">
+                {menuSections.map(section => renderMenuSection(section, true))}
               </nav>
             </div>
 
-            <div className="p-4 border-t border-gray-200">
-              <div className="flex items-center">
-                <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
-                  <span className="text-primary-600 font-semibold">
-                    {user?.firstName?.[0] || 'U'}
-                  </span>
+            <div className="border-t border-gray-200">
+              <div className="p-4">
+                <div className="flex items-center">
+                  {user?.profileImage ? (
+                    <img 
+                      src={user.profileImage} 
+                      alt={user.displayName}
+                      className="w-10 h-10 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
+                      <span className="text-primary-600 font-semibold">
+                        {user?.firstName?.[0] || 'U'}
+                      </span>
+                    </div>
+                  )}
+                  <div className="ml-3 flex-1">
+                    <p className="text-sm font-medium text-gray-900">{user?.displayName}</p>
+                    <p className="text-xs text-gray-500">{user?.email}</p>
+                  </div>
                 </div>
-                <div className="ml-3 flex-1">
-                  <p className="text-sm font-medium text-gray-900">{user?.displayName}</p>
-                  <p className="text-xs text-gray-500">{user?.email}</p>
-                </div>
+                <button
+                  onClick={handleLogout}
+                  className="mt-3 w-full flex items-center justify-center px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                >
+                  <LogOut className="w-4 h-4 mr-2" />
+                  ออกจากระบบ
+                </button>
               </div>
-              <button
-                onClick={handleLogout}
-                className="mt-3 w-full flex items-center justify-center px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors"
-              >
-                <LogOut className="w-4 h-4 mr-2" />
-                ออกจากระบบ
-              </button>
             </div>
           </div>
         </>
@@ -277,15 +339,23 @@ const Layout = ({ children }: LayoutProps) => {
               {/* Page title - desktop */}
               <div className="hidden lg:block">
                 <h1 className="text-xl font-semibold text-gray-900">
-                  {filteredMenuItems.find(item => isActivePath(item.path))?.label || 'ClassPass'}
+                  {menuSections.flatMap(s => s.items).find(item => isActivePath(item.path))?.label || 'ClassPass'}
                 </h1>
               </div>
 
               {/* Mobile logo */}
               <div className="lg:hidden flex items-center">
-                <div className="w-8 h-8 bg-primary-500 rounded flex items-center justify-center">
-                  <span className="text-white font-bold">C</span>
-                </div>
+                {school?.logo ? (
+                  <img 
+                    src={school.logo} 
+                    alt={school.name}
+                    className="w-8 h-8 rounded object-cover"
+                  />
+                ) : (
+                  <div className="w-8 h-8 bg-primary-500 rounded flex items-center justify-center">
+                    <span className="text-white font-bold">C</span>
+                  </div>
+                )}
                 <span className="ml-2 text-lg font-semibold">ClassPass</span>
               </div>
 
@@ -303,11 +373,19 @@ const Layout = ({ children }: LayoutProps) => {
                     onClick={() => setUserMenuOpen(!userMenuOpen)}
                     className="flex items-center space-x-3 text-gray-700 hover:text-gray-900"
                   >
-                    <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">
-                      <span className="text-primary-600 font-semibold text-sm">
-                        {user?.firstName?.[0] || 'U'}
-                      </span>
-                    </div>
+                    {user?.profileImage ? (
+                      <img 
+                        src={user.profileImage} 
+                        alt={user.displayName}
+                        className="w-8 h-8 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">
+                        <span className="text-primary-600 font-semibold text-sm">
+                          {user?.firstName?.[0] || 'U'}
+                        </span>
+                      </div>
+                    )}
                     <span className="text-sm font-medium">{user?.firstName}</span>
                     <ChevronDown className="w-4 h-4" />
                   </button>
