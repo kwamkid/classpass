@@ -109,7 +109,7 @@ export async function getDashboardStats(schoolId: string) {
     const coursesSnapshot = await getDocs(coursesQuery)
     
     let todayClasses = 0
-    const today = now.toLocaleLowerCase('en-US', { weekday: 'long' }).toLowerCase()
+    const today = now.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase()
     
     coursesSnapshot.forEach((doc) => {
       const course = doc.data()
@@ -254,7 +254,7 @@ export async function getTodayClasses(schoolId: string) {
     )
     const coursesSnapshot = await getDocs(coursesQuery)
     
-    const today = new Date().toLocaleLowerCase('en-US', { weekday: 'long' }).toLowerCase()
+    const today = new Date().toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase()
     const todayClasses: any[] = []
     
     coursesSnapshot.forEach((doc) => {

@@ -16,7 +16,7 @@ const registerSchema = z.object({
     .min(3, 'subdomain ต้องมีอย่างน้อย 3 ตัวอักษร')
     .max(20, 'subdomain ต้องไม่เกิน 20 ตัวอักษร')
     .regex(/^[a-z0-9-]+$/, 'subdomain ใช้ได้เฉพาะตัวอักษรภาษาอังกฤษพิมพ์เล็ก, ตัวเลข และ - เท่านั้น')
-    .refine((val) => !['app', 'www', 'api', 'admin', 'dashboard'], 'subdomain นี้ไม่สามารถใช้ได้'),
+    .refine((val) => !['app', 'www', 'api', 'admin', 'dashboard'].includes(val), 'subdomain นี้ไม่สามารถใช้ได้'),
   
   // Owner info
   firstName: z.string().min(1, 'กรุณากรอกชื่อ'),

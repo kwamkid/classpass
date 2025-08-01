@@ -54,8 +54,8 @@ const EditStudentPage = () => {
       firstName: string,
       lastName: string,
       phone: string,
-      email: string,
-      isPrimaryContact: boolean
+      email?: string,
+      isPrimaryContact?: boolean
     }>
   })
 
@@ -80,7 +80,7 @@ const EditStudentPage = () => {
       const data = await studentService.getStudent(id)
       if (data) {
         setStudent(data)
-        // Set form data
+        // Set form data - map Parent[] to form structure
         setFormData({
           firstName: data.firstName,
           lastName: data.lastName,
@@ -99,7 +99,14 @@ const EditStudentPage = () => {
             province: '',
             postalCode: ''
           },
-          parents: data.parents || []
+          parents: data.parents?.map(parent => ({
+            type: parent.type,
+            firstName: parent.firstName,
+            lastName: parent.lastName,
+            phone: parent.phone,
+            email: parent.email || '',
+            isPrimaryContact: parent.isPrimaryContact || false
+          })) || []
         })
       } else {
         toast.error('ไม่พบข้อมูลนักเรียน')
@@ -165,7 +172,7 @@ const EditStudentPage = () => {
     setFormData(prev => ({
       ...prev,
       parents: [...prev.parents, {
-        type: 'mother',
+        type: 'mother' as const,
         firstName: '',
         lastName: '',
         phone: '',
@@ -235,6 +242,16 @@ const EditStudentPage = () => {
     try {
       setSaving(true)
       
+      // Convert form parents to service parents format
+      const parentsData: studentService.Parent[] = formData.parents.map(parent => ({
+        type: parent.type,
+        firstName: parent.firstName,
+        lastName: parent.lastName,
+        phone: parent.phone,
+        email: parent.email || undefined,
+        isPrimaryContact: parent.isPrimaryContact || false
+      }))
+      
       await studentService.updateStudent(id, {
         firstName: formData.firstName.trim(),
         lastName: formData.lastName.trim(),
@@ -246,7 +263,7 @@ const EditStudentPage = () => {
         email: formData.email.trim(),
         status: formData.status,
         address: formData.address,
-        parents: formData.parents
+        parents: parentsData
       })
       
       toast.success('บันทึกข้อมูลสำเร็จ!')
@@ -611,7 +628,7 @@ const EditStudentPage = () => {
                         <label className="flex items-center">
                           <input
                             type="checkbox"
-                            checked={parent.isPrimaryContact}
+                            checked={parent.isPrimaryContact || false}
                             onChange={(e) => handleParentChange(index, 'isPrimaryContact', e.target.checked)}
                             className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                           />
@@ -680,7 +697,7 @@ const EditStudentPage = () => {
                         </label>
                         <input
                           type="email"
-                          value={parent.email}
+                          value={parent.email || ''}
                           onChange={(e) => handleParentChange(index, 'email', e.target.value)}
                           className="input-base"
                           placeholder="parent@email.com"
