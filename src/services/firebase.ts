@@ -3,6 +3,15 @@ import { getAuth } from 'firebase/auth'
 import { getFirestore } from 'firebase/firestore'
 import { getStorage } from 'firebase/storage'
 
+// Debug: ตรวจสอบว่ามี environment variables หรือไม่
+console.log('Environment check:', {
+  mode: import.meta.env.MODE,
+  isProd: import.meta.env.PROD,
+  isDev: import.meta.env.DEV,
+  hasApiKey: !!import.meta.env.VITE_FIREBASE_API_KEY,
+  apiKeyLength: import.meta.env.VITE_FIREBASE_API_KEY?.length || 0
+})
+
 // Firebase configuration from environment variables
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -11,6 +20,12 @@ const firebaseConfig = {
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
+}
+
+// Validate config
+if (!firebaseConfig.apiKey) {
+  console.error('Firebase API Key is missing!')
+  console.error('Available env vars:', Object.keys(import.meta.env))
 }
 
 // Initialize Firebase

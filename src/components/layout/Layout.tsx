@@ -13,7 +13,8 @@ import {
   LogOut,
   ChevronDown,
   User,
-  Bell
+  Bell,
+  Receipt
 } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
 import { useSchoolStore } from '../../stores/schoolStore'
@@ -61,9 +62,15 @@ const Layout = ({ children }: LayoutProps) => {
       roles: ['owner', 'admin']
     },
     { 
-      path: '/credits', 
+      path: '/packages', 
       icon: CreditCard, 
-      label: 'แพ็คเกจ/เครดิต',
+      label: 'แพ็คเกจ',
+      roles: ['owner', 'admin']
+    },
+    { 
+      path: '/credits/history', 
+      icon: Receipt, 
+      label: 'ประวัติการซื้อ',
       roles: ['owner', 'admin']
     },
     { 

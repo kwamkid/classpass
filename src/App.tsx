@@ -17,6 +17,12 @@ const CoursesPage = lazy(() => import('./pages/courses/CoursesPage'))
 const AddCoursePage = lazy(() => import('./pages/courses/AddCoursePage'))
 const CourseDetailPage = lazy(() => import('./pages/courses/CourseDetailPage'))
 
+// Package & Credit pages
+const PackagesPage = lazy(() => import('./pages/packages/PackagesPage'))
+const AddPackagePage = lazy(() => import('./pages/packages/AddPackagePage'))
+const PurchaseCreditsPage = lazy(() => import('./pages/credits/PurchaseCreditsPage'))
+const CreditHistoryPage = lazy(() => import('./pages/credits/CreditHistoryPage'))
+
 // Loading component
 const PageLoader = () => (
   <div className="min-h-screen flex items-center justify-center">
@@ -81,6 +87,7 @@ function App() {
             </ProtectedRoute>
           } />
           
+          {/* Student routes */}
           <Route path="/students" element={
             <ProtectedRoute>
               <StudentsPage />
@@ -99,6 +106,7 @@ function App() {
             </ProtectedRoute>
           } />
           
+          {/* Course routes */}
           <Route path="/courses" element={
             <ProtectedRoute>
               <CoursesPage />
@@ -114,6 +122,38 @@ function App() {
           <Route path="/courses/:id" element={
             <ProtectedRoute>
               <CourseDetailPage />
+            </ProtectedRoute>
+          } />
+          
+          {/* Package routes */}
+          <Route path="/packages" element={
+            <ProtectedRoute>
+              <PackagesPage />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/packages/add" element={
+            <ProtectedRoute>
+              <AddPackagePage />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/packages/:id/edit" element={
+            <ProtectedRoute>
+              <AddPackagePage />
+            </ProtectedRoute>
+          } />
+          
+          {/* Credit routes */}
+          <Route path="/credits/purchase" element={
+            <ProtectedRoute>
+              <PurchaseCreditsPage />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/credits/history" element={
+            <ProtectedRoute>
+              <CreditHistoryPage />
             </ProtectedRoute>
           } />
           
