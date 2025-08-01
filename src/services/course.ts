@@ -25,6 +25,8 @@ export interface Course {
   coverImage?: string
   status: 'active' | 'inactive' | 'archived'
   totalEnrolled: number
+  tags?: string[]  // <-- เพิ่มบรรทัดนี้
+
   isActive: boolean
   isDeleted?: boolean
   createdAt: Date
@@ -92,13 +94,13 @@ export const getCourses = async (schoolId: string, status?: string): Promise<Cou
     // Filter out deleted courses on client side
     const courses: Course[] = []
     snapshot.docs.forEach(doc => {
-      const data = doc.data()
-      const course = {
+      const data = doc.data() as any
+      const course: Course = {
         id: doc.id,
         ...data,
         createdAt: data.createdAt?.toDate() || new Date(),
         updatedAt: data.updatedAt?.toDate() || new Date()
-      } as Course
+      }
       
       // Only include if not deleted
       if (!course.isDeleted) {
@@ -192,7 +194,6 @@ export const updateCourse = async (
     delete updateData.code
     delete updateData.createdAt
     delete updateData.totalEnrolled
-    delete updateData.totalGraduated
     
     await updateDoc(doc(db, 'courses', courseId), updateData)
   } catch (error) {
@@ -232,7 +233,7 @@ export const searchCourses = async (
       course.name.toLowerCase().includes(lowerSearch) ||
       course.code.toLowerCase().includes(lowerSearch) ||
       course.description?.toLowerCase().includes(lowerSearch) ||
-      course.tags?.some(tag => tag.toLowerCase().includes(lowerSearch))
+      course.tags?.some((tag: any) => tag.toLowerCase().includes(lowerSearch))
     )
   } catch (error) {
     console.error('Error searching courses:', error)

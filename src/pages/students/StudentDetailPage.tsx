@@ -59,7 +59,7 @@ const StudentDetailPage = () => {
     if (!student) return
     
     try {
-      await studentService.updateStudent(student.id, { status: newStatus })
+      await studentService.updateStudent(student.id, { status: newStatus as 'active' | 'inactive' | 'graduated' | 'suspended' })
       toast.success('อัพเดทสถานะสำเร็จ')
       loadStudent()
     } catch (error) {

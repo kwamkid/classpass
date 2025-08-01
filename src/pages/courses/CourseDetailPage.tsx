@@ -64,7 +64,7 @@ const CourseDetailPage = () => {
     if (!course) return
     
     try {
-      await courseService.updateCourse(course.id, { status: newStatus })
+      await courseService.updateCourse(course.id, { status: newStatus as 'active' | 'inactive' | 'archived' })
       toast.success('อัพเดทสถานะสำเร็จ')
       loadCourse()
     } catch (error) {
