@@ -247,6 +247,8 @@ export const getAttendanceHistory = async (
   }
 ): Promise<Attendance[]> => {
   try {
+    console.log('Getting attendance history with filters:', { schoolId, ...filters })
+    
     const attendanceRef = collection(db, 'attendance')
     let conditions = [where('schoolId', '==', schoolId)]
     
@@ -258,17 +260,24 @@ export const getAttendanceHistory = async (
       conditions.push(where('courseId', '==', filters.courseId))
     }
     
+    // Simple query without orderBy to avoid index requirement
     const q = query(
       attendanceRef,
-      ...conditions,
-      orderBy('checkInDate', 'desc')
+      ...conditions
     )
     
     const snapshot = await getDocs(q)
+    console.log(`Found ${snapshot.size} attendance records`)
     
     let attendances: Attendance[] = []
     snapshot.docs.forEach(doc => {
       const data = doc.data() as any
+      console.log('Attendance record:', { 
+        id: doc.id, 
+        studentId: data.studentId, 
+        checkInDate: data.checkInDate 
+      })
+      
       attendances.push({
         id: doc.id,
         ...data,
@@ -284,6 +293,15 @@ export const getAttendanceHistory = async (
     if (filters?.endDate) {
       attendances = attendances.filter(a => a.checkInDate <= filters.endDate!)
     }
+    
+    // Sort by checkInDate desc on client side
+    attendances.sort((a, b) => {
+      const dateA = new Date(a.checkInDate).getTime()
+      const dateB = new Date(b.checkInDate).getTime()
+      return dateB - dateA // desc order
+    })
+    
+    console.log(`Returning ${attendances.length} attendance records after filtering`)
     
     return attendances
   } catch (error) {

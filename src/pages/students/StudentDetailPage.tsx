@@ -13,12 +13,30 @@ import {
   CheckCircle,
   AlertCircle,
   MoreVertical,
-  Trash2
+  Trash2,
+  ShoppingBag,
+  Clock,
+  TrendingDown
 } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
 import * as studentService from '../../services/student'
+import * as creditService from '../../services/studentCredit'
+import * as attendanceService from '../../services/attendance'
 import Layout from '../../components/layout/Layout'
 import toast from 'react-hot-toast'
+
+interface CreditDetail {
+  id: string
+  courseName: string
+  packageName: string
+  totalCredits: number
+  usedCredits: number
+  remainingCredits: number
+  purchaseDate: string
+  expiryDate?: string
+  daysUntilExpiry?: number
+  status: string
+}
 
 const StudentDetailPage = () => {
   const { id } = useParams<{ id: string }>()
@@ -29,10 +47,17 @@ const StudentDetailPage = () => {
   const [menuOpen, setMenuOpen] = useState(false)
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  
+  // Additional data
+  const [creditDetails, setCreditDetails] = useState<CreditDetail[]>([])
+  const [totalAttendances, setTotalAttendances] = useState(0)
+  const [lastAttendance, setLastAttendance] = useState<string | null>(null)
+  const [loadingCredits, setLoadingCredits] = useState(true)
 
   useEffect(() => {
     if (id) {
       loadStudent()
+      loadAdditionalData()
     }
   }, [id])
 
@@ -52,6 +77,42 @@ const StudentDetailPage = () => {
       toast.error('เกิดข้อผิดพลาดในการโหลดข้อมูล')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadAdditionalData = async () => {
+    if (!id || !user?.schoolId) return
+    
+    try {
+      setLoadingCredits(true)
+      
+      // Load credits
+      const credits = await creditService.getStudentAllCoursesCredits(id)
+      setCreditDetails(credits.map(credit => ({
+        id: credit.id,
+        courseName: credit.courseName,
+        packageName: credit.packageName,
+        totalCredits: credit.totalCredits,
+        usedCredits: credit.usedCredits,
+        remainingCredits: credit.remainingCredits,
+        purchaseDate: credit.purchaseDate,
+        expiryDate: credit.expiryDate,
+        daysUntilExpiry: credit.daysUntilExpiry,
+        status: credit.status
+      })))
+      
+      // Load attendance
+      const attendanceHistory = await attendanceService.getAttendanceHistory(
+        user.schoolId,
+        { studentId: id }
+      )
+      setTotalAttendances(attendanceHistory.length)
+      setLastAttendance(attendanceHistory[0]?.checkInDate || null)
+      
+    } catch (error) {
+      console.error('Error loading additional data:', error)
+    } finally {
+      setLoadingCredits(false)
     }
   }
 
@@ -110,6 +171,9 @@ const StudentDetailPage = () => {
     
     return `${age} ปี`
   }
+
+  const totalCredits = creditDetails.reduce((sum, credit) => sum + credit.remainingCredits, 0)
+  const attendanceRate = totalCredits > 0 ? Math.round((totalAttendances / (totalAttendances + totalCredits)) * 100) : 0
 
   if (loading) {
     return (
@@ -362,6 +426,119 @@ const StudentDetailPage = () => {
                 <p className="text-gray-500">ไม่มีข้อมูลผู้ปกครอง</p>
               )}
             </div>
+
+            {/* Credit Details */}
+            <div className="bg-white shadow-sm rounded-lg p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-lg font-medium text-gray-900 flex items-center">
+                  <CreditCard className="w-5 h-5 mr-2 text-gray-500" />
+                  รายละเอียดเครดิต
+                </h2>
+                <Link
+                  to={`/credits/purchase?studentId=${student.id}`}
+                  className="btn-primary text-sm inline-flex items-center"
+                >
+                  <ShoppingBag className="w-4 h-4 mr-1.5" />
+                  ซื้อแพ็คเกจเพิ่ม
+                </Link>
+              </div>
+              
+              {loadingCredits ? (
+                <div className="flex justify-center py-8">
+                  <div className="spinner spinner-primary w-6 h-6"></div>
+                </div>
+              ) : creditDetails.length > 0 ? (
+                <div className="space-y-4">
+                  {creditDetails.map((credit) => (
+                    <div key={credit.id} className="border rounded-lg p-4 hover:bg-gray-50">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h4 className="font-medium text-gray-900">{credit.courseName}</h4>
+                          <p className="text-sm text-gray-600 mt-1">{credit.packageName}</p>
+                          
+                          <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div>
+                              <p className="text-xs text-gray-500">คงเหลือ</p>
+                              <p className={`text-lg font-semibold ${
+                                credit.remainingCredits < 3 ? 'text-red-600' : 'text-gray-900'
+                              }`}>
+                                {credit.remainingCredits} ครั้ง
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-500">ใช้ไปแล้ว</p>
+                              <p className="text-lg font-semibold text-gray-900">
+                                {credit.usedCredits} ครั้ง
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-500">ซื้อเมื่อ</p>
+                              <p className="text-sm text-gray-900">
+                                {new Date(credit.purchaseDate).toLocaleDateString('th-TH', {
+                                  year: 'numeric',
+                                  month: 'short',
+                                  day: 'numeric'
+                                })}
+                              </p>
+                            </div>
+                            {credit.expiryDate && (
+                              <div>
+                                <p className="text-xs text-gray-500">หมดอายุ</p>
+                                <p className={`text-sm ${
+                                  credit.daysUntilExpiry && credit.daysUntilExpiry < 30 
+                                    ? 'text-orange-600 font-medium' 
+                                    : 'text-gray-900'
+                                }`}>
+                                  {new Date(credit.expiryDate).toLocaleDateString('th-TH', {
+                                    year: 'numeric',
+                                    month: 'short',
+                                    day: 'numeric'
+                                  })}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                          
+                          {/* Progress bar */}
+                          <div className="mt-3">
+                            <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
+                              <span>ใช้ไป {Math.round((credit.usedCredits / credit.totalCredits) * 100)}%</span>
+                              <span>{credit.usedCredits}/{credit.totalCredits}</span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                              <div 
+                                className="bg-primary-500 h-2 rounded-full"
+                                style={{ width: `${(credit.usedCredits / credit.totalCredits) * 100}%` }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {credit.daysUntilExpiry && credit.daysUntilExpiry < 30 && (
+                          <div className="ml-4">
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-700">
+                              <Clock className="w-3 h-3 mr-1" />
+                              {credit.daysUntilExpiry} วัน
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <CreditCard className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+                  <p className="text-gray-500">ยังไม่มีเครดิต</p>
+                  <Link
+                    to={`/credits/purchase?studentId=${student.id}`}
+                    className="mt-2 text-primary-600 hover:text-primary-700 font-medium"
+                  >
+                    ซื้อแพ็คเกจ
+                  </Link>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Sidebar */}
@@ -392,22 +569,38 @@ const StudentDetailPage = () => {
                     <CreditCard className="w-5 h-5 text-gray-400 mr-2" />
                     <span className="text-sm text-gray-500">เครดิตคงเหลือ</span>
                   </div>
-                  <span className="text-lg font-semibold text-primary-600">24</span>
+                  <span className={`text-lg font-semibold ${
+                    totalCredits < 3 ? 'text-red-600' : 'text-primary-600'
+                  }`}>
+                    {totalCredits}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
                     <Calendar className="w-5 h-5 text-gray-400 mr-2" />
                     <span className="text-sm text-gray-500">เข้าเรียนแล้ว</span>
                   </div>
-                  <span className="text-lg font-semibold text-green-600">48</span>
+                  <span className="text-lg font-semibold text-green-600">{totalAttendances}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-gray-400 mr-2" />
                     <span className="text-sm text-gray-500">อัตราเข้าเรียน</span>
                   </div>
-                  <span className="text-lg font-semibold text-blue-600">92%</span>
+                  <span className="text-lg font-semibold text-blue-600">{attendanceRate}%</span>
                 </div>
+                {lastAttendance && (
+                  <div className="pt-3 border-t">
+                    <p className="text-xs text-gray-500 mb-1">เรียนครั้งสุดท้าย</p>
+                    <p className="text-sm font-medium text-gray-900">
+                      {new Date(lastAttendance).toLocaleDateString('th-TH', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      })}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 

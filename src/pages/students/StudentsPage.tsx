@@ -1,44 +1,105 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { 
   Plus, 
   Search, 
   Filter, 
-  MoreVertical,
-  Phone,
-  Mail,
+  ShoppingBag,
+  CreditCard,
   Calendar,
-  User
+  User,
+  Eye
 } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
 import * as studentService from '../../services/student'
+import * as creditService from '../../services/studentCredit'
+import * as attendanceService from '../../services/attendance'
 import toast from 'react-hot-toast'
 import Layout from '../../components/layout/Layout'
 
+interface StudentWithDetails extends studentService.Student {
+  totalCredits?: number
+  lastAttendance?: string
+  totalAttendances?: number
+  creditsByPackage?: Array<{
+    courseName: string
+    packageName: string
+    remainingCredits: number
+    expiryDate?: string
+  }>
+}
+
 const StudentsPage = () => {
+  const navigate = useNavigate()
   const { user } = useAuthStore()
-  const [students, setStudents] = useState<studentService.Student[]>([])
+  const [students, setStudents] = useState<StudentWithDetails[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
 
-  // Load students
+  // Load students with additional details
   useEffect(() => {
     if (user?.schoolId) {
-      loadStudents()
+      loadStudentsWithDetails()
     }
   }, [user?.schoolId, statusFilter])
 
-  const loadStudents = async () => {
+  const loadStudentsWithDetails = async () => {
     if (!user?.schoolId) return
     
     try {
       setLoading(true)
-      const data = await studentService.getStudents(
+      
+      // Get students
+      const studentsData = await studentService.getStudents(
         user.schoolId,
         statusFilter === 'all' ? undefined : statusFilter
       )
-      setStudents(data)
+      
+      // Get additional details for each student
+      const studentsWithDetails = await Promise.all(
+        studentsData.map(async (student) => {
+          try {
+            // Get total credits
+            const credits = await creditService.getStudentAllCoursesCredits(student.id)
+            const totalCredits = credits.reduce((sum, credit) => sum + credit.remainingCredits, 0)
+            const creditsByPackage = credits.map(credit => ({
+              courseName: credit.courseName,
+              packageName: credit.packageName,
+              remainingCredits: credit.remainingCredits,
+              expiryDate: credit.expiryDate
+            }))
+            
+            // Get last attendance
+            const attendanceHistory = await attendanceService.getAttendanceHistory(
+              user.schoolId,
+              { studentId: student.id }
+            )
+            console.log(`Student ${student.firstName} attendance history:`, attendanceHistory.length)
+            const lastAttendance = attendanceHistory[0]?.checkInDate
+            const totalAttendances = attendanceHistory.length
+            
+            return {
+              ...student,
+              totalCredits,
+              lastAttendance,
+              totalAttendances,
+              creditsByPackage
+            }
+          } catch (error) {
+            console.error(`Error loading details for student ${student.id}:`, error)
+            return {
+              ...student,
+              totalCredits: 0,
+              lastAttendance: undefined,
+              totalAttendances: 0,
+              creditsByPackage: []
+            }
+          }
+        })
+      )
+      
+      setStudents(studentsWithDetails)
     } catch (error) {
       toast.error('ไม่สามารถโหลดข้อมูลนักเรียนได้')
     } finally {
@@ -54,14 +115,54 @@ const StudentsPage = () => {
       setLoading(true)
       try {
         const results = await studentService.searchStudents(user.schoolId, searchTerm)
-        setStudents(results)
+        
+        // Get additional details for search results
+        const resultsWithDetails = await Promise.all(
+          results.map(async (student) => {
+            try {
+              const credits = await creditService.getStudentAllCoursesCredits(student.id)
+              const totalCredits = credits.reduce((sum, credit) => sum + credit.remainingCredits, 0)
+              const creditsByPackage = credits.map(credit => ({
+                courseName: credit.courseName,
+                packageName: credit.packageName,
+                remainingCredits: credit.remainingCredits,
+                expiryDate: credit.expiryDate
+              }))
+              
+              const attendanceHistory = await attendanceService.getAttendanceHistory(
+                user.schoolId,
+                { studentId: student.id }
+              )
+              const lastAttendance = attendanceHistory[0]?.checkInDate
+              const totalAttendances = attendanceHistory.length
+              
+              return {
+                ...student,
+                totalCredits,
+                lastAttendance,
+                totalAttendances,
+                creditsByPackage
+              }
+            } catch (error) {
+              return {
+                ...student,
+                totalCredits: 0,
+                lastAttendance: undefined,
+                totalAttendances: 0,
+                creditsByPackage: []
+              }
+            }
+          })
+        )
+        
+        setStudents(resultsWithDetails)
       } catch (error) {
         toast.error('เกิดข้อผิดพลาดในการค้นหา')
       } finally {
         setLoading(false)
       }
     } else {
-      loadStudents()
+      loadStudentsWithDetails()
     }
   }
 
@@ -80,6 +181,27 @@ const StudentsPage = () => {
         {config.label}
       </span>
     )
+  }
+
+  const formatLastAttendance = (date?: string) => {
+    if (!date) return 'ยังไม่เคยเข้าเรียน'
+    
+    const attendanceDate = new Date(date)
+    const today = new Date()
+    const diffTime = Math.abs(today.getTime() - attendanceDate.getTime())
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    
+    if (diffDays === 0) return 'วันนี้'
+    if (diffDays === 1) return 'เมื่อวาน'
+    if (diffDays < 7) return `${diffDays} วันที่แล้ว`
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)} สัปดาห์ที่แล้ว`
+    if (diffDays < 365) return `${Math.floor(diffDays / 30)} เดือนที่แล้ว`
+    
+    return attendanceDate.toLocaleDateString('th-TH', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    })
   }
 
   return (
@@ -114,7 +236,7 @@ const StudentsPage = () => {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="ค้นหาด้วยชื่อ, รหัสนักเรียน..."
+                  placeholder="ค้นหาด้วยชื่อ, ชื่อเล่น..."
                   className="input-base pl-10 pr-24"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -165,26 +287,23 @@ const StudentsPage = () => {
           </div>
         ) : (
           <div className="bg-white shadow-sm rounded-lg overflow-hidden">
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto overflow-y-visible">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      รหัส
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      ชื่อ-นามสกุล
+                      นักเรียน
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       ระดับชั้น
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      เบอร์โทร
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative">
+                      เครดิตคงเหลือ
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      สถานะ
+                      เรียนครั้งสุดท้าย
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                       การดำเนินการ
                     </th>
                   </tr>
@@ -192,9 +311,6 @@ const StudentsPage = () => {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {students.map((student) => (
                     <tr key={student.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {student.studentCode}
-                      </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
                           <div className="flex-shrink-0 h-10 w-10">
@@ -207,9 +323,10 @@ const StudentsPage = () => {
                           <div className="ml-4">
                             <div className="text-sm font-medium text-gray-900">
                               {student.firstName} {student.lastName}
+                              {student.nickname && ` (${student.nickname})`}
                             </div>
                             <div className="text-sm text-gray-500">
-                              {student.nickname && `(${student.nickname})`}
+                              {student.phone || '-'}
                             </div>
                           </div>
                         </div>
@@ -217,19 +334,70 @@ const StudentsPage = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {student.currentGrade}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {student.phone || '-'}
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="relative group">
+                          <div className="flex items-center cursor-help">
+                            <CreditCard className="w-4 h-4 mr-1.5 text-gray-400" />
+                            <span className={`text-sm font-medium ${
+                              student.totalCredits === 0 || (student.totalCredits && student.totalCredits < 3) ? 'text-red-600' : 
+                              'text-gray-900'
+                            }`}>
+                              {student.totalCredits || 0} ครั้ง
+                            </span>
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            เรียนไปแล้ว {student.totalAttendances || 0} ครั้ง
+                          </div>
+                          
+                          {/* Tooltip */}
+                          {student.creditsByPackage && student.creditsByPackage.length > 0 && (
+                            <div className="invisible group-hover:visible absolute z-50 left-0 bottom-full mb-2 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-lg">
+                              <div className="font-medium mb-2">รายละเอียดเครดิตคงเหลือ:</div>
+                              {student.creditsByPackage.map((credit, idx) => (
+                                <div key={idx} className="mb-1.5 pb-1.5 border-b border-gray-700 last:border-0">
+                                  <div className="font-medium">{credit.courseName}</div>
+                                  <div className="text-gray-300">
+                                    {credit.packageName} - {credit.remainingCredits} ครั้ง
+                                  </div>
+                                  {credit.expiryDate && (
+                                    <div className="text-gray-400">
+                                      หมดอายุ: {new Date(credit.expiryDate).toLocaleDateString('th-TH', {
+                                        year: 'numeric',
+                                        month: 'short',
+                                        day: 'numeric'
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                              <div className="absolute bottom-[-6px] left-6 w-3 h-3 bg-gray-900 transform rotate-45"></div>
+                            </div>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        {getStatusBadge(student.status)}
+                        <div className="flex items-center text-sm text-gray-500">
+                          <Calendar className="w-4 h-4 mr-1.5" />
+                          {formatLastAttendance(student.lastAttendance)}
+                        </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <Link
-                          to={`/students/${student.id}`}
-                          className="text-primary-600 hover:text-primary-900"
-                        >
-                          ดูรายละเอียด
-                        </Link>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center justify-center space-x-2">
+                          <Link
+                            to={`/students/${student.id}`}
+                            className="p-1.5 text-gray-600 hover:text-primary-600 hover:bg-gray-100 rounded-md transition-colors"
+                            title="ดูรายละเอียด"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Link>
+                          <button
+                            onClick={() => navigate(`/credits/purchase?studentId=${student.id}`)}
+                            className="p-1.5 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-md transition-colors"
+                            title="ซื้อแพ็คเกจ"
+                          >
+                            <ShoppingBag className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
