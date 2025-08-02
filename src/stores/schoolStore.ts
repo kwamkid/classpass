@@ -1,3 +1,4 @@
+// src/stores/schoolStore.ts
 import { create } from 'zustand'
 import * as schoolService from '../services/school'
 
@@ -5,7 +6,6 @@ import * as schoolService from '../services/school'
 interface School {
   id: string
   name: string
-  subdomain: string
   logo?: string
   address?: string
   phone?: string
@@ -22,7 +22,6 @@ interface SchoolState {
   
   // Actions
   loadSchool: (schoolId: string) => Promise<void>
-  loadSchoolBySubdomain: (subdomain: string) => Promise<void>
   setSchool: (school: School | null) => void
   clearError: () => void
 }
@@ -37,30 +36,10 @@ export const useSchoolStore = create<SchoolState>((set) => ({
     try {
       const school = await schoolService.getSchoolById(schoolId)
       if (school) {
-        set({ school, isLoading: false })
+        set({ school: school as School, isLoading: false })
       } else {
         set({ 
           error: 'ไม่พบข้อมูลโรงเรียน', 
-          isLoading: false 
-        })
-      }
-    } catch (error: any) {
-      set({ 
-        error: error.message || 'เกิดข้อผิดพลาดในการโหลดข้อมูลโรงเรียน',
-        isLoading: false 
-      })
-    }
-  },
-  
-  loadSchoolBySubdomain: async (subdomain: string) => {
-    set({ isLoading: true, error: null })
-    try {
-      const school = await schoolService.getSchoolBySubdomain(subdomain)
-      if (school) {
-        set({ school, isLoading: false })
-      } else {
-        set({ 
-          error: 'ไม่พบโรงเรียนที่ระบุ', 
           isLoading: false 
         })
       }

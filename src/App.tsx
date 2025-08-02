@@ -59,7 +59,14 @@ function App() {
   
   // Load school data when user is authenticated (but NOT for super admin)
   useEffect(() => {
-    if (user?.schoolId && user.schoolId !== 'SYSTEM' && !user.isSuperAdmin) {
+    // Skip loading school for super admin
+    if (user?.isSuperAdmin || user?.role === 'superadmin') {
+      console.log('Skipping school load for super admin')
+      return
+    }
+    
+    // Load school for regular users
+    if (user?.schoolId && user.schoolId !== 'SYSTEM') {
       loadSchool(user.schoolId)
     }
   }, [user, loadSchool])

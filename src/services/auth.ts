@@ -42,9 +42,10 @@ export interface User {
   firstName: string
   lastName: string
   displayName: string
-  role: 'owner' | 'admin' | 'teacher'
+  role: 'owner' | 'admin' | 'teacher' | 'superadmin'
   schoolId: string
   isActive: boolean
+  isSuperAdmin?: boolean
   createdAt?: any
   updatedAt?: any
 }

@@ -30,7 +30,7 @@ export interface User {
   role: 'owner' | 'admin' | 'teacher' | 'superadmin'
   schoolId: string
   isActive: boolean
-  isSuperAdmin?: boolean // เพิ่ม field นี้
+  isSuperAdmin?: boolean
   createdAt?: any
   updatedAt?: any
 }

@@ -3,16 +3,21 @@ import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import * as authService from '../services/auth'
 
-// Define User type locally to avoid import issues
+// Define User type with superadmin role
 interface User {
   id: string
   email: string
   firstName: string
   lastName: string
   displayName: string
-  role: 'owner' | 'admin' | 'teacher'
+  role: 'owner' | 'admin' | 'teacher' | 'superadmin'
   schoolId: string
   isActive: boolean
+  isSuperAdmin?: boolean
+  profileImage?: string
+  phone?: string
+  createdAt?: any
+  updatedAt?: any
   [key: string]: any
 }
 
@@ -46,7 +51,7 @@ export const useAuthStore = create<AuthState>()(
           const user = await authService.login({ email, password })
           console.log('✅ Login successful:', user)
           set({ 
-            user, 
+            user: user as User, 
             isAuthenticated: true, 
             isLoading: false,
             error: null 
@@ -114,7 +119,7 @@ export const useAuthStore = create<AuthState>()(
           console.log('👤 Current user from Firebase:', user)
           
           set({ 
-            user, 
+            user: user as User | null, 
             isAuthenticated: !!user,
             isLoading: false,
             error: null
@@ -159,5 +164,5 @@ export const useAuthStore = create<AuthState>()(
 // Subscribe to auth state changes
 authService.subscribeToAuthState((user) => {
   console.log('🔄 Auth state changed:', user?.email)
-  useAuthStore.getState().setUser(user)
+  useAuthStore.getState().setUser(user as User | null)
 })

@@ -1,3 +1,5 @@
+// src/types/models.ts
+
 // User Types
 export interface User {
   id: string
@@ -8,15 +10,15 @@ export interface User {
   profileImage?: string
   phone?: string
   role: 'owner' | 'admin' | 'teacher' | 'superadmin'
-  isSuperAdmin?: boolean
   schoolId: string
   isActive: boolean
+  isSuperAdmin?: boolean
   createdAt: Date
   updatedAt: Date
   lastLogin?: Date
 }
 
-// School Types - removed subdomain
+// School Types
 export interface School {
   id: string
   name: string
