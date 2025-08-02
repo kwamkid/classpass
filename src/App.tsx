@@ -37,6 +37,9 @@ const ReceiptPage = lazy(() => import('./pages/credits/ReceiptPage'))
 const AttendancePage = lazy(() => import('./pages/attendance/AttendancePage'))
 const SettingsPage = lazy(() => import('./pages/settings/SettingsPage'))
 const ReportsPage = lazy(() => import('./pages/reports/ReportsPage'))
+const UsersPage = lazy(() => import('./pages/users/UsersPage'))
+const AddUserPage = lazy(() => import('./pages/users/AddUserPage'))
+const EditUserPage = lazy(() => import('./pages/users/EditUserPage'))
 
 // Loading component
 const PageLoader = () => (
@@ -230,6 +233,25 @@ return (
           <Route path="/reports" element={
             <ProtectedRoute>
               <ReportsPage />
+            </ProtectedRoute>
+          } />
+          
+          {/* User management routes */}
+          <Route path="/users" element={
+            <ProtectedRoute allowedRoles={['owner', 'admin']}>
+              <UsersPage />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/users/add" element={
+            <ProtectedRoute allowedRoles={['owner', 'admin']}>
+              <AddUserPage />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/users/:id/edit" element={
+            <ProtectedRoute allowedRoles={['owner', 'admin']}>
+              <EditUserPage />
             </ProtectedRoute>
           } />
           

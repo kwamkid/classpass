@@ -15,7 +15,8 @@ import {
   User,
   Bell,
   Receipt,
-  Package
+  Package,
+  UserCog
 } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
 import { useSchoolStore } from '../../stores/schoolStore'
@@ -112,6 +113,13 @@ const Layout = ({ children }: LayoutProps) => {
     {
       title: 'ระบบ',
       items: [
+        { 
+          path: '/users', 
+          icon: UserCog, 
+          label: 'จัดการผู้ใช้',
+          roles: ['owner', 'admin'],
+          color: 'text-purple-600'
+        },
         { 
           path: '/settings', 
           icon: Settings, 
