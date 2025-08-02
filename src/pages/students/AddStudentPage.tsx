@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { 
   ArrowLeft, 
@@ -11,6 +11,7 @@ import {
   AlertCircle
 } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
+import { useOnboardingStore } from '../../stores/onboardingStore'
 import * as studentService from '../../services/student'
 import toast from 'react-hot-toast'
 import Layout from '../../components/layout/Layout'
@@ -18,7 +19,9 @@ import Layout from '../../components/layout/Layout'
 const AddStudentPage = () => {
   const navigate = useNavigate()
   const { user } = useAuthStore()
+  const { completeStep, steps } = useOnboardingStore()
   const [loading, setLoading] = useState(false)
+  const [existingStudents, setExistingStudents] = useState<studentService.Student[]>([])
   const [errors, setErrors] = useState<Record<string, string>>({})
   
   const [formData, setFormData] = useState({
@@ -43,6 +46,29 @@ const AddStudentPage = () => {
     'ม.1', 'ม.2', 'ม.3', 'ม.4', 'ม.5', 'ม.6',
     'อื่นๆ'
   ]
+
+  useEffect(() => {
+    checkExistingStudents()
+  }, [])
+
+  const checkExistingStudents = async () => {
+    if (!user?.schoolId) return
+    
+    try {
+      const students = await studentService.getStudents(user.schoolId)
+      setExistingStudents(students)
+      
+      // If already have students, complete the step
+      if (students.length > 0) {
+        const studentStep = steps.find(s => s.id === 'add-student')
+        if (studentStep && !studentStep.completed) {
+          completeStep('add-student')
+        }
+      }
+    } catch (error) {
+      console.error('Error checking students:', error)
+    }
+  }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target
@@ -118,7 +144,14 @@ const AddStudentPage = () => {
       
       const newStudent = await studentService.createStudent(user.schoolId, studentData)
       
-      toast.success('เพิ่มนักเรียนสำเร็จ!')
+      // Complete onboarding step if this is the first student
+      if (existingStudents.length === 0) {
+        completeStep('add-student')
+        toast.success('เพิ่มนักเรียนคนแรกสำเร็จ! 🎉')
+      } else {
+        toast.success('เพิ่มนักเรียนสำเร็จ!')
+      }
+      
       navigate('/students')
     } catch (error) {
       console.error('Error creating student:', error)
@@ -136,31 +169,48 @@ const AddStudentPage = () => {
         <div className="mb-8">
           <Link
             to="/students"
-            className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-4"
+            className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-4 text-base"
           >
-            <ArrowLeft className="w-4 h-4 mr-2" />
+            <ArrowLeft className="w-5 h-5 mr-2" />
             กลับไปหน้ารายชื่อนักเรียน
           </Link>
           
-          <h1 className="text-2xl font-bold text-gray-900">เพิ่มนักเรียนใหม่</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <h1 className="text-3xl font-bold text-gray-900">เพิ่มนักเรียนใหม่</h1>
+          <p className="mt-2 text-base text-gray-500">
             กรอกข้อมูลนักเรียนเพื่อเพิ่มเข้าสู่ระบบ
           </p>
         </div>
+
+        {/* Show if first student */}
+        {existingStudents.length === 0 && (
+          <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg p-6 mb-8">
+            <div className="flex">
+              <Users className="w-6 h-6 text-purple-600 mr-3 flex-shrink-0 mt-0.5" />
+              <div>
+                <h3 className="text-lg font-medium text-purple-900 mb-2">
+                  เพิ่มนักเรียนคนแรกของคุณ! 🎓
+                </h3>
+                <p className="text-base text-purple-700">
+                  นี่คือขั้นตอนสุดท้าย (4 จาก 4) ในการตั้งค่าเริ่มต้น
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Student Information */}
           <div className="bg-white shadow-sm rounded-lg p-6">
-            <h2 className="text-lg font-medium text-gray-900 mb-6 flex items-center">
-              <User className="w-5 h-5 mr-2 text-gray-500" />
+            <h2 className="text-xl font-medium text-gray-900 mb-6 flex items-center">
+              <User className="w-6 h-6 mr-2 text-gray-500" />
               ข้อมูลนักเรียน
             </h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* First Name */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-base font-medium text-gray-700 mb-2">
                   ชื่อ <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -168,7 +218,7 @@ const AddStudentPage = () => {
                   name="firstName"
                   value={formData.firstName}
                   onChange={handleChange}
-                  className={`input-base ${errors.firstName ? 'input-error' : ''}`}
+                  className={`input-base text-base ${errors.firstName ? 'input-error' : ''}`}
                   placeholder="ชื่อจริง"
                 />
                 {errors.firstName && (
@@ -178,7 +228,7 @@ const AddStudentPage = () => {
 
               {/* Last Name */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-base font-medium text-gray-700 mb-2">
                   นามสกุล <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -186,7 +236,7 @@ const AddStudentPage = () => {
                   name="lastName"
                   value={formData.lastName}
                   onChange={handleChange}
-                  className={`input-base ${errors.lastName ? 'input-error' : ''}`}
+                  className={`input-base text-base ${errors.lastName ? 'input-error' : ''}`}
                   placeholder="นามสกุล"
                 />
                 {errors.lastName && (
@@ -196,7 +246,7 @@ const AddStudentPage = () => {
 
               {/* Nickname */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-base font-medium text-gray-700 mb-2">
                   ชื่อเล่น
                 </label>
                 <input
@@ -204,14 +254,14 @@ const AddStudentPage = () => {
                   name="nickname"
                   value={formData.nickname}
                   onChange={handleChange}
-                  className="input-base"
+                  className="input-base text-base"
                   placeholder="ชื่อเล่น"
                 />
               </div>
 
               {/* Birth Date */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-base font-medium text-gray-700 mb-2">
                   วันเกิด <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
@@ -221,7 +271,7 @@ const AddStudentPage = () => {
                     name="birthDate"
                     value={formData.birthDate}
                     onChange={handleChange}
-                    className={`input-base pl-10 ${errors.birthDate ? 'input-error' : ''}`}
+                    className={`input-base text-base pl-10 ${errors.birthDate ? 'input-error' : ''}`}
                     max={new Date().toISOString().split('T')[0]}
                   />
                 </div>
@@ -232,14 +282,14 @@ const AddStudentPage = () => {
 
               {/* Gender */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-base font-medium text-gray-700 mb-2">
                   เพศ
                 </label>
                 <select
                   name="gender"
                   value={formData.gender}
                   onChange={handleChange}
-                  className="input-base"
+                  className="input-base text-base"
                 >
                   <option value="male">ชาย</option>
                   <option value="female">หญิง</option>
@@ -249,14 +299,14 @@ const AddStudentPage = () => {
 
               {/* Grade */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-base font-medium text-gray-700 mb-2">
                   ระดับชั้น <span className="text-red-500">*</span>
                 </label>
                 <select
                   name="currentGrade"
                   value={formData.currentGrade}
                   onChange={handleChange}
-                  className={`input-base ${errors.currentGrade ? 'input-error' : ''}`}
+                  className={`input-base text-base ${errors.currentGrade ? 'input-error' : ''}`}
                 >
                   <option value="">เลือกระดับชั้น</option>
                   {grades.map(grade => (
@@ -270,7 +320,7 @@ const AddStudentPage = () => {
 
               {/* Phone */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-base font-medium text-gray-700 mb-2">
                   เบอร์โทรนักเรียน
                 </label>
                 <div className="relative">
@@ -280,7 +330,7 @@ const AddStudentPage = () => {
                     name="phone"
                     value={formData.phone}
                     onChange={handleChange}
-                    className="input-base pl-10"
+                    className="input-base text-base pl-10"
                     placeholder="08X-XXX-XXXX"
                   />
                 </div>
@@ -288,7 +338,7 @@ const AddStudentPage = () => {
 
               {/* Email */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-base font-medium text-gray-700 mb-2">
                   อีเมลนักเรียน
                 </label>
                 <div className="relative">
@@ -298,7 +348,7 @@ const AddStudentPage = () => {
                     name="email"
                     value={formData.email}
                     onChange={handleChange}
-                    className="input-base pl-10"
+                    className="input-base text-base pl-10"
                     placeholder="student@email.com"
                   />
                 </div>
@@ -308,22 +358,22 @@ const AddStudentPage = () => {
 
           {/* Parent Information */}
           <div className="bg-white shadow-sm rounded-lg p-6">
-            <h2 className="text-lg font-medium text-gray-900 mb-6 flex items-center">
-              <Users className="w-5 h-5 mr-2 text-gray-500" />
+            <h2 className="text-xl font-medium text-gray-900 mb-6 flex items-center">
+              <Users className="w-6 h-6 mr-2 text-gray-500" />
               ข้อมูลผู้ปกครอง
             </h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Parent Relation */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-base font-medium text-gray-700 mb-2">
                   ความสัมพันธ์
                 </label>
                 <select
                   name="parentRelation"
                   value={formData.parentRelation}
                   onChange={handleChange}
-                  className="input-base"
+                  className="input-base text-base"
                 >
                   <option value="father">บิดา</option>
                   <option value="mother">มารดา</option>
@@ -333,7 +383,7 @@ const AddStudentPage = () => {
 
               {/* Parent Name */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-base font-medium text-gray-700 mb-2">
                   ชื่อ-นามสกุล ผู้ปกครอง <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -341,7 +391,7 @@ const AddStudentPage = () => {
                   name="parentName"
                   value={formData.parentName}
                   onChange={handleChange}
-                  className={`input-base ${errors.parentName ? 'input-error' : ''}`}
+                  className={`input-base text-base ${errors.parentName ? 'input-error' : ''}`}
                   placeholder="ชื่อ-นามสกุล"
                 />
                 {errors.parentName && (
@@ -351,7 +401,7 @@ const AddStudentPage = () => {
 
               {/* Parent Phone */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-base font-medium text-gray-700 mb-2">
                   เบอร์โทรผู้ปกครอง <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
@@ -361,7 +411,7 @@ const AddStudentPage = () => {
                     name="parentPhone"
                     value={formData.parentPhone}
                     onChange={handleChange}
-                    className={`input-base pl-10 ${errors.parentPhone ? 'input-error' : ''}`}
+                    className={`input-base text-base pl-10 ${errors.parentPhone ? 'input-error' : ''}`}
                     placeholder="08X-XXX-XXXX"
                   />
                 </div>
@@ -372,7 +422,7 @@ const AddStudentPage = () => {
 
               {/* Parent Email */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-base font-medium text-gray-700 mb-2">
                   อีเมลผู้ปกครอง
                 </label>
                 <div className="relative">
@@ -382,7 +432,7 @@ const AddStudentPage = () => {
                     name="parentEmail"
                     value={formData.parentEmail}
                     onChange={handleChange}
-                    className="input-base pl-10"
+                    className="input-base text-base pl-10"
                     placeholder="parent@email.com"
                   />
                 </div>
@@ -394,14 +444,14 @@ const AddStudentPage = () => {
           <div className="flex justify-end space-x-4">
             <Link
               to="/students"
-              className="btn-secondary"
+              className="btn-secondary text-base"
             >
               ยกเลิก
             </Link>
             <button
               type="submit"
               disabled={loading}
-              className="btn-primary inline-flex items-center"
+              className="btn-primary inline-flex items-center text-base"
             >
               {loading ? (
                 <>

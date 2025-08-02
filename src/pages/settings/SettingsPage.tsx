@@ -9,10 +9,13 @@ import {
   Globe,
   Save,
   Upload,
-  X
+  X,
+  RotateCcw
 } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
 import { useSchoolStore } from '../../stores/schoolStore'
+import { useOnboardingStore } from '../../stores/onboardingStore'
+import { useOnboardingComplete } from '../../hooks/useOnboardingComplete'
 import * as schoolService from '../../services/school'
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { storage } from '../../services/firebase'
@@ -22,6 +25,7 @@ import Layout from '../../components/layout/Layout'
 const SettingsPage = () => {
   const { user } = useAuthStore()
   const { school, loadSchool } = useSchoolStore()
+  const { resetOnboarding, isOnboardingComplete, completeStep } = useOnboardingStore()
   const [activeTab, setActiveTab] = useState('school')
   const [loading, setLoading] = useState(false)
   const [uploadingLogo, setUploadingLogo] = useState(false)
@@ -109,6 +113,11 @@ const SettingsPage = () => {
       await schoolService.updateSchool(school.id, schoolData)
       await loadSchool(school.id)
       toast.success('บันทึกข้อมูลสำเร็จ')
+      
+      // Complete onboarding step if school info is filled
+      if (schoolData.address || schoolData.phone) {
+        completeStep('school-info')
+      }
     } catch (error) {
       toast.error('เกิดข้อผิดพลาดในการบันทึกข้อมูล')
     } finally {
@@ -513,6 +522,39 @@ const SettingsPage = () => {
                     <p className="text-sm text-gray-500">
                       {new Date().toLocaleString('th-TH')}
                     </p>
+                  </div>
+                  
+                  <div className="pt-4 border-t border-gray-200">
+                    <h3 className="text-sm font-medium text-gray-900 mb-3">
+                      การตั้งค่าเริ่มต้น
+                    </h3>
+                    {isOnboardingComplete ? (
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm text-green-600">
+                          ✅ ตั้งค่าเริ่มต้นเสร็จสมบูรณ์
+                        </p>
+                        <button
+                          onClick={() => {
+                            if (window.confirm('ต้องการดูคำแนะนำการตั้งค่าอีกครั้ง?')) {
+                              resetOnboarding()
+                              toast.success('รีเซ็ตการตั้งค่าเริ่มต้นแล้ว')
+                            }
+                          }}
+                          className="text-sm text-primary-600 hover:text-primary-700 inline-flex items-center"
+                        >
+                          <RotateCcw className="w-4 h-4 mr-1" />
+                          ดูคำแนะนำอีกครั้ง
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => resetOnboarding()}
+                        className="btn-secondary inline-flex items-center"
+                      >
+                        <RotateCcw className="w-4 h-4 mr-2" />
+                        เริ่มการตั้งค่าใหม่
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

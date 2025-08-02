@@ -11,7 +11,10 @@ import {
   AlertCircle,
   Loader2,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  Sparkles,
+  BookOpen,
+  Package
 } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
 import { useSchoolStore } from '../../stores/schoolStore'
@@ -19,6 +22,9 @@ import { Link } from 'react-router-dom'
 import Layout from '../../components/layout/Layout'
 import * as dashboardService from '../../services/dashboard'
 import toast from 'react-hot-toast'
+import { useOnboardingStore } from '../../stores/onboardingStore'
+import OnboardingWizard from '../../components/onboarding/OnboardingWizard'
+import OnboardingProgress from '../../components/onboarding/OnboardingProgress'
 
 const Dashboard = () => {
   const { user } = useAuthStore()
@@ -34,10 +40,19 @@ const Dashboard = () => {
   })
   const [activities, setActivities] = useState<any[]>([])
   const [todayClasses, setTodayClasses] = useState<any[]>([])
+  
+  // Onboarding
+  const { 
+    initializeOnboarding, 
+    checkStepCompletion,
+    isOnboardingComplete,
+    setShowWizard
+  } = useOnboardingStore()
 
   useEffect(() => {
     if (school?.id) {
       loadDashboardData()
+      initializeOnboarding()
     }
   }, [school?.id])
 
@@ -57,6 +72,14 @@ const Dashboard = () => {
       setStats(statsData)
       setActivities(activitiesData)
       setTodayClasses(classesData)
+      
+      // Check onboarding completion
+      checkStepCompletion({
+        hasSchoolInfo: !!school.address || !!school.phone,
+        hasCourses: classesData.length > 0,
+        hasPackages: false, // TODO: Check from stats
+        hasStudents: statsData.totalStudents > 0
+      })
     } catch (error) {
       console.error('Error loading dashboard data:', error)
       toast.error('เกิดข้อผิดพลาดในการโหลดข้อมูล')
@@ -99,6 +122,32 @@ const Dashboard = () => {
             นี่คือภาพรวมของ{school?.name || 'โรงเรียน'}ในวันนี้
           </p>
         </div>
+
+        {/* Getting Started Banner - Show if not complete */}
+        {!isOnboardingComplete && (
+          <div className="bg-gradient-to-r from-orange-50 to-yellow-50 border border-orange-200 rounded-lg p-6 mb-8">
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <Sparkles className="h-8 w-8 text-orange-500" />
+              </div>
+              <div className="ml-4 flex-1">
+                <h3 className="text-lg font-medium text-orange-900">
+                  เริ่มต้นใช้งาน ClassPass
+                </h3>
+                <p className="mt-1 text-sm text-orange-700">
+                  ตั้งค่าพื้นฐานเพื่อให้ระบบพร้อมใช้งาน ใช้เวลาเพียง 5 นาที
+                </p>
+                <button
+                  onClick={() => setShowWizard(true)}
+                  className="mt-3 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-orange-700 bg-orange-100 hover:bg-orange-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
+                >
+                  เริ่มการตั้งค่า
+                  <ArrowRight className="ml-2 -mr-1 h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -242,6 +291,10 @@ const Dashboard = () => {
           </div>
         </div>
       </div>
+      
+      {/* Onboarding Components */}
+      <OnboardingWizard />
+      <OnboardingProgress />
     </Layout>
   )
 }

@@ -10,9 +10,11 @@ import {
   AlertCircle,
   Plus,
   Star,
-  Award
+  Award,
+  Package
 } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
+import { useOnboardingStore } from '../../stores/onboardingStore'
 import * as packageService from '../../services/package'
 import * as courseService from '../../services/course'
 import toast from 'react-hot-toast'
@@ -21,8 +23,10 @@ import Layout from '../../components/layout/Layout'
 const AddPackagePage = () => {
   const navigate = useNavigate()
   const { user } = useAuthStore()
+  const { completeStep, steps } = useOnboardingStore()
   const [loading, setLoading] = useState(false)
   const [courses, setCourses] = useState<courseService.Course[]>([])
+  const [existingPackages, setExistingPackages] = useState<packageService.CreditPackage[]>([])
   const [errors, setErrors] = useState<Record<string, string>>({})
   
   const [formData, setFormData] = useState({
@@ -48,22 +52,35 @@ const AddPackagePage = () => {
   ]
 
   useEffect(() => {
-    loadCourses()
+    loadInitialData()
   }, [])
 
-  const loadCourses = async () => {
+  const loadInitialData = async () => {
     if (!user?.schoolId) return
     
     try {
-      const data = await courseService.getCourses(user.schoolId, 'active')
-      setCourses(data)
+      // Load courses
+      const coursesData = await courseService.getCourses(user.schoolId, 'active')
+      setCourses(coursesData)
       
       // Auto-select first course if only one
-      if (data.length === 1) {
-        setFormData(prev => ({ ...prev, courseId: data[0].id }))
+      if (coursesData.length === 1) {
+        setFormData(prev => ({ ...prev, courseId: coursesData[0].id }))
+      }
+      
+      // Check existing packages
+      const packagesData = await packageService.getPackages(user.schoolId)
+      setExistingPackages(packagesData)
+      
+      // If already have packages, complete the step
+      if (packagesData.length > 0) {
+        const packageStep = steps.find(s => s.id === 'create-package')
+        if (packageStep && !packageStep.completed) {
+          completeStep('create-package')
+        }
       }
     } catch (error) {
-      toast.error('ไม่สามารถโหลดข้อมูลวิชาได้')
+      console.error('Error loading data:', error)
     }
   }
 
@@ -163,7 +180,14 @@ const AddPackagePage = () => {
       
       await packageService.createPackage(user.schoolId, packageData)
       
-      toast.success('เพิ่มแพ็คเกจสำเร็จ!')
+      // Complete onboarding step if this is the first package
+      if (existingPackages.length === 0) {
+        completeStep('create-package')
+        toast.success('เพิ่มแพ็คเกจแรกสำเร็จ! 🎉')
+      } else {
+        toast.success('เพิ่มแพ็คเกจสำเร็จ!')
+      }
+      
       navigate('/packages')
     } catch (error) {
       console.error('Error creating package:', error)
@@ -186,35 +210,52 @@ const AddPackagePage = () => {
         <div className="mb-8">
           <Link
             to="/packages"
-            className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-4"
+            className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-4 text-base"
           >
-            <ArrowLeft className="w-4 h-4 mr-2" />
+            <ArrowLeft className="w-5 h-5 mr-2" />
             กลับไปหน้าแพ็คเกจ
           </Link>
           
-          <h1 className="text-2xl font-bold text-gray-900">เพิ่มแพ็คเกจใหม่</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <h1 className="text-3xl font-bold text-gray-900">เพิ่มแพ็คเกจใหม่</h1>
+          <p className="mt-2 text-base text-gray-500">
             สร้างแพ็คเกจเครดิตสำหรับวิชาเรียน
           </p>
         </div>
+
+        {/* Show if first package */}
+        {existingPackages.length === 0 && (
+          <div className="bg-gradient-to-r from-orange-50 to-yellow-50 border border-orange-200 rounded-lg p-6 mb-8">
+            <div className="flex">
+              <Package className="w-6 h-6 text-orange-600 mr-3 flex-shrink-0 mt-0.5" />
+              <div>
+                <h3 className="text-lg font-medium text-orange-900 mb-2">
+                  สร้างแพ็คเกจแรกของคุณ! 💳
+                </h3>
+                <p className="text-base text-orange-700">
+                  นี่คือขั้นตอนที่ 3 จาก 4 ในการตั้งค่าเริ่มต้น
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Course Selection */}
           <div className="bg-white shadow-sm rounded-lg p-6">
-            <h2 className="text-lg font-medium text-gray-900 mb-6">
+            <h2 className="text-xl font-medium text-gray-900 mb-6">
               เลือกวิชา
             </h2>
             
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-base font-medium text-gray-700 mb-2">
                 วิชาที่ใช้กับแพ็คเกจนี้ <span className="text-red-500">*</span>
               </label>
               <select
                 name="courseId"
                 value={formData.courseId}
                 onChange={handleChange}
-                className={`input-base ${errors.courseId ? 'input-error' : ''}`}
+                className={`input-base text-base ${errors.courseId ? 'input-error' : ''}`}
               >
                 <option value="">เลือกวิชา</option>
                 {courses.map(course => (
@@ -231,24 +272,24 @@ const AddPackagePage = () => {
 
           {/* Package Details */}
           <div className="bg-white shadow-sm rounded-lg p-6">
-            <h2 className="text-lg font-medium text-gray-900 mb-6 flex items-center">
-              <CreditCard className="w-5 h-5 mr-2 text-gray-500" />
+            <h2 className="text-xl font-medium text-gray-900 mb-6 flex items-center">
+              <CreditCard className="w-6 h-6 mr-2 text-gray-500" />
               รายละเอียดแพ็คเกจ
             </h2>
 
             {/* Preset Packages */}
             <div className="mb-6">
-              <p className="text-sm text-gray-600 mb-3">เลือกแพ็คเกจตัวอย่าง:</p>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              <p className="text-base text-gray-600 mb-3">เลือกแพ็คเกจตัวอย่าง:</p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {presetPackages.map((preset, index) => (
                   <button
                     key={index}
                     type="button"
                     onClick={() => applyPreset(preset)}
-                    className="p-3 border border-gray-200 rounded-md hover:border-primary-500 hover:bg-primary-50 transition-colors text-left"
+                    className="p-4 border border-gray-200 rounded-md hover:border-primary-500 hover:bg-primary-50 transition-colors text-left"
                   >
-                    <p className="font-medium text-sm">{preset.credits} ครั้ง</p>
-                    <p className="text-xs text-gray-500">฿{preset.price.toLocaleString()}</p>
+                    <p className="font-medium text-base">{preset.credits} ครั้ง</p>
+                    <p className="text-sm text-gray-500">฿{preset.price.toLocaleString()}</p>
                   </button>
                 ))}
               </div>
@@ -257,7 +298,7 @@ const AddPackagePage = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Package Name */}
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-base font-medium text-gray-700 mb-2">
                   ชื่อแพ็คเกจ <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -265,7 +306,7 @@ const AddPackagePage = () => {
                   name="name"
                   value={formData.name}
                   onChange={handleChange}
-                  className={`input-base ${errors.name ? 'input-error' : ''}`}
+                  className={`input-base text-base ${errors.name ? 'input-error' : ''}`}
                   placeholder="เช่น แพ็คเกจประหยัด, แพ็คเกจรายเดือน"
                 />
                 {errors.name && (
@@ -275,7 +316,7 @@ const AddPackagePage = () => {
 
               {/* Credits */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-base font-medium text-gray-700 mb-2">
                   จำนวนเครดิต <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -284,7 +325,7 @@ const AddPackagePage = () => {
                   value={formData.credits}
                   onChange={handleChange}
                   min="1"
-                  className={`input-base ${errors.credits ? 'input-error' : ''}`}
+                  className={`input-base text-base ${errors.credits ? 'input-error' : ''}`}
                 />
                 {errors.credits && (
                   <p className="mt-1 text-sm text-red-600">{errors.credits}</p>
@@ -293,7 +334,7 @@ const AddPackagePage = () => {
 
               {/* Price */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-base font-medium text-gray-700 mb-2">
                   ราคา (บาท) <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -302,7 +343,7 @@ const AddPackagePage = () => {
                   value={formData.price}
                   onChange={handleChange}
                   min="0"
-                  className={`input-base ${errors.price ? 'input-error' : ''}`}
+                  className={`input-base text-base ${errors.price ? 'input-error' : ''}`}
                 />
                 {errors.price && (
                   <p className="mt-1 text-sm text-red-600">{errors.price}</p>
@@ -311,14 +352,14 @@ const AddPackagePage = () => {
 
               {/* Validity Type */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-base font-medium text-gray-700 mb-2">
                   ระยะเวลาใช้งาน
                 </label>
                 <select
                   name="validityType"
                   value={formData.validityType}
                   onChange={handleChange}
-                  className="input-base"
+                  className="input-base text-base"
                 >
                   <option value="months">จำนวนเดือน</option>
                   <option value="days">จำนวนวัน</option>
@@ -329,7 +370,7 @@ const AddPackagePage = () => {
               {/* Validity Value */}
               {formData.validityType !== 'unlimited' && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-base font-medium text-gray-700 mb-2">
                     {formData.validityType === 'months' ? 'จำนวนเดือน' : 'จำนวนวัน'} <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -338,7 +379,7 @@ const AddPackagePage = () => {
                     value={formData.validityValue}
                     onChange={handleChange}
                     min="1"
-                    className={`input-base ${errors.validityValue ? 'input-error' : ''}`}
+                    className={`input-base text-base ${errors.validityValue ? 'input-error' : ''}`}
                   />
                   {errors.validityValue && (
                     <p className="mt-1 text-sm text-red-600">{errors.validityValue}</p>
@@ -348,7 +389,7 @@ const AddPackagePage = () => {
 
               {/* Bonus Credits */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-base font-medium text-gray-700 mb-2">
                   เครดิตโบนัส
                 </label>
                 <input
@@ -357,17 +398,17 @@ const AddPackagePage = () => {
                   value={formData.bonusCredits}
                   onChange={handleChange}
                   min="0"
-                  className="input-base"
+                  className="input-base text-base"
                   placeholder="0"
                 />
-                <p className="mt-1 text-xs text-gray-500">
+                <p className="mt-1 text-sm text-gray-500">
                   เช่น ซื้อ 10 แถม 2
                 </p>
               </div>
 
               {/* Description */}
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-base font-medium text-gray-700 mb-2">
                   คำอธิบายแพ็คเกจ
                 </label>
                 <textarea
@@ -375,24 +416,24 @@ const AddPackagePage = () => {
                   value={formData.description}
                   onChange={handleChange}
                   rows={3}
-                  className="input-base"
+                  className="input-base text-base"
                   placeholder="อธิบายรายละเอียดของแพ็คเกจ (ไม่บังคับ)"
                 />
               </div>
             </div>
 
             {/* Price Summary */}
-            <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+            <div className="mt-6 p-5 bg-gray-50 rounded-lg">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">สรุปแพ็คเกจ</p>
-                  <p className="text-lg font-medium text-gray-900 mt-1">
+                  <p className="text-base text-gray-600">สรุปแพ็คเกจ</p>
+                  <p className="text-xl font-medium text-gray-900 mt-1">
                     {formData.credits + formData.bonusCredits} ครั้ง = ฿{formData.price.toLocaleString()}
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm text-gray-600">ราคาต่อครั้ง</p>
-                  <p className="text-lg font-medium text-primary-600 mt-1">
+                  <p className="text-base text-gray-600">ราคาต่อครั้ง</p>
+                  <p className="text-xl font-medium text-primary-600 mt-1">
                     ฿{calculatePricePerCredit().toLocaleString()}
                   </p>
                 </div>
@@ -402,8 +443,8 @@ const AddPackagePage = () => {
 
           {/* Display Options */}
           <div className="bg-white shadow-sm rounded-lg p-6">
-            <h2 className="text-lg font-medium text-gray-900 mb-6 flex items-center">
-              <Tag className="w-5 h-5 mr-2 text-gray-500" />
+            <h2 className="text-xl font-medium text-gray-900 mb-6 flex items-center">
+              <Tag className="w-6 h-6 mr-2 text-gray-500" />
               ตัวเลือกการแสดงผล
             </h2>
 
@@ -415,12 +456,12 @@ const AddPackagePage = () => {
                   name="popular"
                   checked={formData.popular}
                   onChange={handleChange}
-                  className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  className="rounded border-gray-300 text-primary-600 focus:ring-primary-500 w-5 h-5"
                 />
-                <span className="ml-2 text-sm text-gray-700">
+                <span className="ml-3 text-base text-gray-700">
                   แสดงป้าย "ยอดนิยม"
                 </span>
-                <Star className="w-4 h-4 ml-2 text-orange-500" />
+                <Star className="w-5 h-5 ml-2 text-orange-500" />
               </label>
 
               {/* Recommended */}
@@ -430,41 +471,22 @@ const AddPackagePage = () => {
                   name="recommended"
                   checked={formData.recommended}
                   onChange={handleChange}
-                  className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  className="rounded border-gray-300 text-primary-600 focus:ring-primary-500 w-5 h-5"
                 />
-                <span className="ml-2 text-sm text-gray-700">
+                <span className="ml-3 text-base text-gray-700">
                   แสดงป้าย "แนะนำ"
                 </span>
-                <Award className="w-4 h-4 ml-2 text-blue-500" />
+                <Award className="w-5 h-5 ml-2 text-blue-500" />
               </label>
-
-              {/* Color */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  สีของแพ็คเกจ
-                </label>
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="color"
-                    name="color"
-                    value={formData.color}
-                    onChange={handleChange}
-                    className="h-10 w-20"
-                  />
-                  <span className="text-sm text-gray-500">
-                    เลือกสีเพื่อแยกแยะแพ็คเกจ
-                  </span>
-                </div>
-              </div>
             </div>
           </div>
 
           {/* Note */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-5">
             <div className="flex">
-              <AlertCircle className="w-5 h-5 text-blue-600 mr-2 flex-shrink-0 mt-0.5" />
-              <div className="text-sm text-blue-700">
-                <p className="font-medium mb-1">หมายเหตุ:</p>
+              <AlertCircle className="w-6 h-6 text-blue-600 mr-3 flex-shrink-0 mt-0.5" />
+              <div className="text-base text-blue-700">
+                <p className="font-medium mb-2">หมายเหตุ:</p>
                 <ul className="list-disc list-inside space-y-1">
                   <li>แพ็คเกจจะใช้ได้เฉพาะกับวิชาที่เลือกเท่านั้น</li>
                   <li>นักเรียนสามารถซื้อแพ็คเกจได้หลายแพ็คเกจ</li>
@@ -478,14 +500,14 @@ const AddPackagePage = () => {
           <div className="flex justify-end space-x-4">
             <Link
               to="/packages"
-              className="btn-secondary"
+              className="btn-secondary text-base"
             >
               ยกเลิก
             </Link>
             <button
               type="submit"
               disabled={loading}
-              className="btn-primary inline-flex items-center"
+              className="btn-primary inline-flex items-center text-base"
             >
               {loading ? (
                 <>
