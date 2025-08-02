@@ -6,11 +6,18 @@ import { useAuthStore } from './stores/authStore'
 import { useSchoolStore } from './stores/schoolStore'
 import { ProtectedRoute } from './components/common/ProtectedRoute'
 
-// Lazy load pages for better performance
+// Lazy load pages
 const LandingPage = lazy(() => import('./pages/public/LandingPage'))
 const Login = lazy(() => import('./pages/auth/Login'))
 const Register = lazy(() => import('./pages/auth/Register'))
 const ForgotPassword = lazy(() => import('./pages/auth/ForgotPassword'))
+
+// Super Admin pages
+const SuperAdminLogin = lazy(() => import('./pages/auth/SuperAdminLogin'))
+const SuperAdminDashboard = lazy(() => import('./pages/superadmin/SuperAdminDashboard'))
+const SuperAdminRoute = lazy(() => import('./components/common/SuperAdminRoute'))
+
+// Regular pages
 const Dashboard = lazy(() => import('./pages/dashboard/Dashboard'))
 const StudentsPage = lazy(() => import('./pages/students/StudentsPage'))
 const AddStudentPage = lazy(() => import('./pages/students/AddStudentPage'))
@@ -19,18 +26,12 @@ const StudentDetailPage = lazy(() => import('./pages/students/StudentDetailPage'
 const CoursesPage = lazy(() => import('./pages/courses/CoursesPage'))
 const AddCoursePage = lazy(() => import('./pages/courses/AddCoursePage'))
 const CourseDetailPage = lazy(() => import('./pages/courses/CourseDetailPage'))
-
-// Package & Credit pages
 const PackagesPage = lazy(() => import('./pages/packages/PackagesPage'))
 const AddPackagePage = lazy(() => import('./pages/packages/AddPackagePage'))
 const PurchaseCreditsPage = lazy(() => import('./pages/credits/PurchaseCreditsPage'))
 const CreditHistoryPage = lazy(() => import('./pages/credits/CreditHistoryPage'))
 const ReceiptPage = lazy(() => import('./pages/credits/ReceiptPage'))
-
-// Attendance pages
 const AttendancePage = lazy(() => import('./pages/attendance/AttendancePage'))
-
-// Settings & Reports pages
 const SettingsPage = lazy(() => import('./pages/settings/SettingsPage'))
 const ReportsPage = lazy(() => import('./pages/reports/ReportsPage'))
 
@@ -56,9 +57,9 @@ function App() {
     initAuth()
   }, [checkAuth])
   
-  // Load school data when user is authenticated
+  // Load school data when user is authenticated (but NOT for super admin)
   useEffect(() => {
-    if (user?.schoolId) {
+    if (user?.schoolId && user.schoolId !== 'SYSTEM' && !user.isSuperAdmin) {
       loadSchool(user.schoolId)
     }
   }, [user, loadSchool])
@@ -100,6 +101,16 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
+          
+          {/* Super Admin routes */}
+          <Route path="/superadmin" element={<SuperAdminLogin />} />
+          <Route path="/superadmin/*" element={
+            <SuperAdminRoute>
+              <Routes>
+                <Route path="dashboard" element={<SuperAdminDashboard />} />
+              </Routes>
+            </SuperAdminRoute>
+          } />
           
           {/* Protected routes - ต้อง login ก่อน */}
           <Route path="/dashboard" element={

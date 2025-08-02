@@ -7,7 +7,8 @@ export interface User {
   displayName: string
   profileImage?: string
   phone?: string
-  role: 'owner' | 'admin' | 'teacher'
+  role: 'owner' | 'admin' | 'teacher' | 'superadmin'
+  isSuperAdmin?: boolean
   schoolId: string
   isActive: boolean
   createdAt: Date
