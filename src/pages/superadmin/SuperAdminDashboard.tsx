@@ -16,7 +16,8 @@ import {
   Clock,
   Activity,
   LogOut,
-  Shield
+  Shield,
+  Database
 } from 'lucide-react'
 import { 
   getAllSchoolsWithStats, 
@@ -157,6 +158,13 @@ export default function SuperAdminDashboard() {
               >
                 <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
                 รีเฟรช
+              </button>
+              <button
+                onClick={() => navigate('/superadmin/seed-demo')}
+                className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+              >
+                <Database className="w-4 h-4 mr-2" />
+                Demo Accounts
               </button>
               <button
                 onClick={() => setShowCreateModal(true)}

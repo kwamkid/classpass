@@ -17,6 +17,7 @@ const ForgotPassword = lazy(() => import('./pages/auth/ForgotPassword'))
 // Super Admin pages
 const SuperAdminLogin = lazy(() => import('./pages/auth/SuperAdminLogin'))
 const SuperAdminDashboard = lazy(() => import('./pages/superadmin/SuperAdminDashboard'))
+const SeedDemoPage = lazy(() => import('./pages/superadmin/SeedDemoPage'))
 const SuperAdminRoute = lazy(() => import('./components/common/SuperAdminRoute'))
 
 // Regular pages
@@ -117,6 +118,7 @@ return (
             <SuperAdminRoute>
               <Routes>
                 <Route path="dashboard" element={<SuperAdminDashboard />} />
+                <Route path="seed-demo" element={<SeedDemoPage />} />
               </Routes>
             </SuperAdminRoute>
           } />
