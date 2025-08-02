@@ -5,6 +5,8 @@ import { Toaster } from 'react-hot-toast'
 import { useAuthStore } from './stores/authStore'
 import { useSchoolStore } from './stores/schoolStore'
 import { ProtectedRoute } from './components/common/ProtectedRoute'
+import { FontLoader } from './components/common/FontLoader'
+
 
 // Lazy load pages
 const LandingPage = lazy(() => import('./pages/public/LandingPage'))
@@ -76,8 +78,8 @@ function App() {
     return <PageLoader />
   }
   
-  return (
-    <>
+return (
+  <FontLoader>
       {/* Toast notifications */}
       <Toaster 
         position="top-right"
@@ -233,7 +235,7 @@ function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
-    </>
+        </FontLoader>
   )
 }
 
