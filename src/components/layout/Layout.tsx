@@ -151,15 +151,15 @@ const Layout = ({ children }: LayoutProps) => {
                 to={item.path}
                 onClick={() => isMobile && setSidebarOpen(false)}
                 className={`
-                  flex items-center px-3 py-2.5 text-base font-medium rounded-lg transition-all duration-150
+                  flex items-center px-3 py-3 text-base font-medium rounded-lg transition-all duration-150
                   ${isActive 
                     ? 'bg-primary-50 text-primary-700 shadow-sm' 
                     : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
                   }
                 `}
               >
-                <Icon className={`w-5 h-5 mr-3 ${isActive ? 'text-primary-600' : item.color}`} />
-                <span className="text-sm font-medium">{item.label}</span>
+                <Icon className={`w-6 h-6 mr-3 ${isActive ? 'text-primary-600' : item.color}`} />
+                <span className="text-base font-medium">{item.label}</span>
               </Link>
             )
           })}

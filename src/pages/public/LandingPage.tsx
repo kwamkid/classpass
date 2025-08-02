@@ -36,25 +36,37 @@ const LandingPage = () => {
         </div>
       </nav>
 
-      {/* Hero Section */}
+      {/* Hero Section with Banner */}
       <section className="pt-20 pb-32 px-4">
-        <div className="max-w-6xl mx-auto text-center">
-          <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6">
-            ระบบจัดการโรงเรียนสอนพิเศษ
-            <span className="text-gradient block mt-2">ที่ใช้งานง่ายที่สุด</span>
-          </h1>
-          <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
-            จัดการนักเรียน ตารางเรียน และระบบเครดิต ได้ในที่เดียว 
-            ด้วยระบบที่ออกแบบมาเพื่อโรงเรียนสอนพิเศษโดยเฉพาะ
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link to="/register" className="btn-primary text-lg px-8 py-3">
-              ทดลองใช้ฟรี 30 วัน
-              <ArrowRight className="ml-2 w-5 h-5" />
-            </Link>
-            <button className="btn-secondary text-lg px-8 py-3">
-              ดูตัวอย่างการใช้งาน
-            </button>
+        <div className="max-w-6xl mx-auto">
+          {/* Banner Image */}
+          <div className="mb-12 rounded-2xl overflow-hidden shadow-2xl">
+            <img 
+              src="/banner-01.jpg" 
+              alt="ClassPass Banner" 
+              className="w-full h-auto object-cover"
+            />
+          </div>
+          
+          {/* Hero Content */}
+          <div className="text-center">
+            <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6">
+              ระบบจัดการโรงเรียนสอนพิเศษ
+              <span className="text-gradient block mt-2">ที่ใช้งานง่ายที่สุด</span>
+            </h1>
+            <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
+              จัดการนักเรียน ตารางเรียน และระบบเครดิต ได้ในที่เดียว 
+              ด้วยระบบที่ออกแบบมาเพื่อโรงเรียนสอนพิเศษโดยเฉพาะ
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Link to="/register" className="btn-primary text-lg px-8 py-3">
+                สมัครใช้งานฟรีตลอดชีพ!
+                <ArrowRight className="ml-2 w-5 h-5" />
+              </Link>
+              <button className="btn-secondary text-lg px-8 py-3">
+                ดูตัวอย่างการใช้งาน
+              </button>
+            </div>
           </div>
         </div>
       </section>

@@ -13,19 +13,13 @@ export interface OnboardingStep {
 interface OnboardingStore {
   // State
   isOnboardingComplete: boolean
-  currentStep: number
   steps: OnboardingStep[]
-  showWizard: boolean
   
   // Actions
   initializeOnboarding: () => void
   completeStep: (stepId: string) => void
-  nextStep: () => void
-  previousStep: () => void
   skipOnboarding: () => void
   resetOnboarding: () => void
-  setShowWizard: (show: boolean) => void
-  goToIncompleteStep: () => void
   checkStepCompletion: (data: {
     hasSchoolInfo?: boolean
     hasCourses?: boolean
@@ -36,44 +30,32 @@ interface OnboardingStore {
 
 const defaultSteps: OnboardingStep[] = [
   {
-    id: 'welcome',
-    title: 'ยินดีต้อนรับสู่ ClassPass! 🎉',
-    description: 'เรามาเริ่มตั้งค่าโรงเรียนของคุณกันเถอะ',
-    completed: false
-  },
-  {
     id: 'school-info',
     title: 'ข้อมูลโรงเรียน',
-    description: 'กรอกข้อมูลโรงเรียนของคุณให้ครบถ้วน',
+    description: 'กรอกข้อมูลโรงเรียน เช่น ที่อยู่ เบอร์โทร โลโก้',
     completed: false,
     path: '/settings'
   },
   {
     id: 'create-course',
     title: 'สร้างวิชาเรียน',
-    description: 'เพิ่มวิชาเรียนที่โรงเรียนของคุณเปิดสอน',
+    description: 'เพิ่มวิชาที่เปิดสอน เช่น คณิต ฟิสิกส์ กีฬา',
     completed: false,
     path: '/courses/add'
   },
   {
     id: 'create-package',
     title: 'สร้างแพ็คเกจเครดิต',
-    description: 'กำหนดแพ็คเกจและราคาสำหรับแต่ละวิชา',
+    description: 'กำหนดแพ็คเกจและราคา เช่น 4 ครั้ง 800 บาท',
     completed: false,
     path: '/packages/add'
   },
   {
     id: 'add-student',
     title: 'เพิ่มนักเรียน',
-    description: 'เพิ่มข้อมูลนักเรียนคนแรกของคุณ',
+    description: 'เพิ่มข้อมูลนักเรียนคนแรก',
     completed: false,
     path: '/students/add'
-  },
-  {
-    id: 'complete',
-    title: 'เสร็จสิ้น! 🎊',
-    description: 'คุณพร้อมใช้งาน ClassPass แล้ว',
-    completed: false
   }
 ]
 
@@ -82,9 +64,7 @@ export const useOnboardingStore = create<OnboardingStore>()(
     (set, get) => ({
       // Initial state
       isOnboardingComplete: false,
-      currentStep: 0,
       steps: defaultSteps,
-      showWizard: false,
 
       // Initialize onboarding for new users
       initializeOnboarding: () => {
@@ -94,44 +74,34 @@ export const useOnboardingStore = create<OnboardingStore>()(
         
         set({
           isOnboardingComplete: isComplete,
-          showWizard: !isComplete,
-          currentStep: isComplete ? 0 : 0,
           steps: defaultSteps
         })
       },
 
       // Complete a specific step
       completeStep: (stepId: string) => {
-        set((state) => ({
-          steps: state.steps.map(step =>
-            step.id === stepId ? { ...step, completed: true } : step
-          )
-        }))
-      },
-
-      // Move to next step
-      nextStep: () => {
         set((state) => {
-          const nextStep = state.currentStep + 1
-          const isLastStep = nextStep >= state.steps.length - 1
+          const updatedSteps = state.steps.map(step =>
+            step.id === stepId ? { ...step, completed: !step.completed } : step
+          )
           
-          if (isLastStep) {
+          // Check if all steps are complete
+          const allComplete = updatedSteps.every(s => s.completed)
+          
+          if (allComplete) {
             const schoolId = localStorage.getItem('schoolId')
             localStorage.setItem(`onboarding_${schoolId}_complete`, 'true')
+          } else {
+            // If unchecking, remove complete flag
+            const schoolId = localStorage.getItem('schoolId')
+            localStorage.removeItem(`onboarding_${schoolId}_complete`)
           }
           
           return {
-            currentStep: nextStep,
-            isOnboardingComplete: isLastStep
+            steps: updatedSteps,
+            isOnboardingComplete: allComplete
           }
         })
-      },
-
-      // Move to previous step
-      previousStep: () => {
-        set((state) => ({
-          currentStep: Math.max(0, state.currentStep - 1)
-        }))
       },
 
       // Skip onboarding
@@ -140,8 +110,7 @@ export const useOnboardingStore = create<OnboardingStore>()(
         localStorage.setItem(`onboarding_${schoolId}_complete`, 'true')
         
         set({
-          isOnboardingComplete: true,
-          showWizard: false
+          isOnboardingComplete: true
         })
       },
 
@@ -152,43 +121,8 @@ export const useOnboardingStore = create<OnboardingStore>()(
         
         set({
           isOnboardingComplete: false,
-          currentStep: 0,
-          steps: defaultSteps,
-          showWizard: true
+          steps: defaultSteps.map(s => ({ ...s, completed: false }))
         })
-      },
-
-      // Toggle wizard visibility
-      setShowWizard: (show: boolean) => {
-        // When showing wizard, go to first incomplete step
-        if (show) {
-          const state = get()
-          const firstIncompleteIndex = state.steps.findIndex(
-            s => !s.completed && s.id !== 'welcome' && s.id !== 'complete'
-          )
-          
-          if (firstIncompleteIndex !== -1) {
-            set({ 
-              showWizard: show,
-              currentStep: firstIncompleteIndex
-            })
-            return
-          }
-        }
-        
-        set({ showWizard: show })
-      },
-      
-      // Go to first incomplete step
-      goToIncompleteStep: () => {
-        const state = get()
-        const firstIncompleteIndex = state.steps.findIndex(
-          s => !s.completed && s.id !== 'welcome' && s.id !== 'complete'
-        )
-        
-        if (firstIncompleteIndex !== -1) {
-          set({ currentStep: firstIncompleteIndex })
-        }
       },
 
       // Check and update step completion based on actual data
@@ -197,45 +131,41 @@ export const useOnboardingStore = create<OnboardingStore>()(
           const updatedSteps = [...state.steps]
           
           // Check school info
-          if (data.hasSchoolInfo) {
+          if (data.hasSchoolInfo !== undefined) {
             const schoolStep = updatedSteps.find(s => s.id === 'school-info')
-            if (schoolStep) schoolStep.completed = true
+            if (schoolStep) schoolStep.completed = data.hasSchoolInfo
           }
           
           // Check courses
-          if (data.hasCourses) {
+          if (data.hasCourses !== undefined) {
             const courseStep = updatedSteps.find(s => s.id === 'create-course')
-            if (courseStep) courseStep.completed = true
+            if (courseStep) courseStep.completed = data.hasCourses
           }
           
           // Check packages
-          if (data.hasPackages) {
+          if (data.hasPackages !== undefined) {
             const packageStep = updatedSteps.find(s => s.id === 'create-package')
-            if (packageStep) packageStep.completed = true
+            if (packageStep) packageStep.completed = data.hasPackages
           }
           
           // Check students
-          if (data.hasStudents) {
+          if (data.hasStudents !== undefined) {
             const studentStep = updatedSteps.find(s => s.id === 'add-student')
-            if (studentStep) studentStep.completed = true
+            if (studentStep) studentStep.completed = data.hasStudents
           }
           
           // Check if all steps are complete
-          const allComplete = updatedSteps
-            .filter(s => s.id !== 'welcome' && s.id !== 'complete')
-            .every(s => s.completed)
+          const allComplete = updatedSteps.every(s => s.completed)
           
           if (allComplete) {
             const schoolId = localStorage.getItem('schoolId')
             localStorage.setItem(`onboarding_${schoolId}_complete`, 'true')
-            return {
-              steps: updatedSteps,
-              isOnboardingComplete: true,
-              showWizard: false
-            }
           }
           
-          return { steps: updatedSteps }
+          return {
+            steps: updatedSteps,
+            isOnboardingComplete: allComplete
+          }
         })
       }
     }),
@@ -243,7 +173,6 @@ export const useOnboardingStore = create<OnboardingStore>()(
       name: 'onboarding-storage',
       partialize: (state) => ({
         isOnboardingComplete: state.isOnboardingComplete,
-        currentStep: state.currentStep,
         steps: state.steps
       })
     }
