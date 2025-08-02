@@ -40,9 +40,7 @@ const userSchema = z.object({
   lastName: z.string()
     .min(1, 'กรุณากรอกนามสกุล')
     .max(50, 'นามสกุลต้องไม่เกิน 50 ตัวอักษร'),
-  role: z.enum(['admin', 'teacher'] as const, {
-    errorMap: () => ({ message: 'กรุณาเลือกบทบาท' })
-  }),
+  role: z.enum(['admin', 'teacher'] as const),
   phone: z.string().optional()
 }).refine((data) => data.password === data.confirmPassword, {
   message: "รหัสผ่านไม่ตรงกัน",
@@ -237,7 +235,7 @@ const AddUserPage = () => {
                     <option value="teacher">ครูผู้สอน</option>
                   </select>
                   {errors.role && (
-                    <p className="mt-1 text-sm text-red-600">{errors.role.message}</p>
+                    <p className="mt-1 text-sm text-red-600">กรุณาเลือกบทบาท</p>
                   )}
                 </div>
               </div>

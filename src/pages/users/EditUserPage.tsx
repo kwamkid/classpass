@@ -29,9 +29,7 @@ const userSchema = z.object({
   lastName: z.string()
     .min(1, 'กรุณากรอกนามสกุล')
     .max(50, 'นามสกุลต้องไม่เกิน 50 ตัวอักษร'),
-  role: z.enum(['owner', 'admin', 'teacher'] as const, {
-    errorMap: () => ({ message: 'กรุณาเลือกบทบาท' })
-  }),
+  role: z.enum(['owner', 'admin', 'teacher'] as const),
   phone: z.string().optional(),
   isActive: z.boolean()
 })
@@ -314,7 +312,7 @@ const EditUserPage = () => {
                     </div>
                   )}
                   {errors.role && (
-                    <p className="mt-1 text-sm text-red-600">{errors.role.message}</p>
+                    <p className="mt-1 text-sm text-red-600">กรุณาเลือกบทบาท</p>
                   )}
                 </div>
 
