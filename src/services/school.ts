@@ -11,10 +11,9 @@ import {
 } from 'firebase/firestore'
 import { db } from './firebase'
 
-// Types
+// Types - removed subdomain
 export interface School {
   id: string
-  subdomain: string
   name: string
   logo?: string
   address?: string
@@ -52,10 +51,12 @@ export interface School {
 // Get school by ID
 export const getSchoolById = async (schoolId: string): Promise<School | null> => {
   try {
+    console.log('🏫 Fetching school with ID:', schoolId)
     const schoolDoc = await getDoc(doc(db, 'schools', schoolId))
     
     if (schoolDoc.exists()) {
       const data = schoolDoc.data()
+      console.log('✅ School found:', data.name)
       return {
         id: schoolDoc.id,
         ...data,
@@ -66,40 +67,10 @@ export const getSchoolById = async (schoolId: string): Promise<School | null> =>
       } as School
     }
     
+    console.log('❌ School not found')
     return null
   } catch (error) {
     console.error('Error getting school:', error)
-    return null
-  }
-}
-
-// Get school by subdomain
-export const getSchoolBySubdomain = async (subdomain: string): Promise<School | null> => {
-  try {
-    const schoolsRef = collection(db, 'schools')
-    const q = query(
-      schoolsRef, 
-      where('subdomain', '==', subdomain.toLowerCase()),
-      where('isActive', '==', true)
-    )
-    const snapshot = await getDocs(q)
-    
-    if (!snapshot.empty) {
-      const doc = snapshot.docs[0]
-      const data = doc.data()
-      return {
-        id: doc.id,
-        ...data,
-        createdAt: data.createdAt?.toDate() || new Date(),
-        updatedAt: data.updatedAt?.toDate() || new Date(),
-        lastActiveAt: data.lastActiveAt?.toDate(),
-        planExpiry: data.planExpiry?.toDate()
-      } as School
-    }
-    
-    return null
-  } catch (error) {
-    console.error('Error getting school by subdomain:', error)
     return null
   }
 }
@@ -117,7 +88,6 @@ export const updateSchool = async (
     
     // Remove fields that shouldn't be updated
     delete updateData.id
-    delete updateData.subdomain
     delete updateData.createdAt
     
     // Remove undefined values
@@ -126,6 +96,7 @@ export const updateSchool = async (
     )
     
     await updateDoc(doc(db, 'schools', schoolId), updateData)
+    console.log('✅ School updated successfully')
   } catch (error) {
     console.error('Error updating school:', error)
     throw error
@@ -140,22 +111,6 @@ export const updateSchoolActivity = async (schoolId: string): Promise<void> => {
     })
   } catch (error) {
     console.error('Error updating school activity:', error)
-  }
-}
-
-// Check subdomain availability
-export async function checkSubdomainAvailability(subdomain: string): Promise<boolean> {
-  try {
-    const schoolsQuery = query(
-      collection(db, 'schools'),
-      where('subdomain', '==', subdomain.toLowerCase())
-    )
-    
-    const snapshot = await getDocs(schoolsQuery)
-    return snapshot.empty
-  } catch (error) {
-    console.error('Error checking subdomain:', error)
-    throw error
   }
 }
 

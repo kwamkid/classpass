@@ -4,29 +4,21 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Building, Mail, Lock, User, Globe, Loader2, Eye, EyeOff } from 'lucide-react'
+import { Building, Mail, Lock, User, Loader2, Eye, EyeOff, ArrowLeft } from 'lucide-react'
 import * as authService from '../../services/auth'
 import toast from 'react-hot-toast'
 
-// Validation schema
+// Validation schema - removed subdomain
 const registerSchema = z.object({
   // School info
   schoolName: z.string().min(1, 'กรุณากรอกชื่อโรงเรียน'),
-  subdomain: z.string()
-    .min(3, 'subdomain ต้องมีอย่างน้อย 3 ตัวอักษร')
-    .max(20, 'subdomain ต้องไม่เกิน 20 ตัวอักษร')
-    .regex(/^[a-z0-9-]+$/, 'subdomain ใช้ได้เฉพาะตัวอักษรภาษาอังกฤษพิมพ์เล็ก, ตัวเลข และ - เท่านั้น')
-    .refine((val) => !['app', 'www', 'api', 'admin', 'dashboard'].includes(val), 'subdomain นี้ไม่สามารถใช้ได้'),
   
   // Owner info
   firstName: z.string().min(1, 'กรุณากรอกชื่อ'),
   lastName: z.string().min(1, 'กรุณากรอกนามสกุล'),
   email: z.string().email('อีเมลไม่ถูกต้อง'),
   password: z.string()
-    .min(8, 'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร')
-    .regex(/[A-Z]/, 'รหัสผ่านต้องมีตัวอักษรพิมพ์ใหญ่อย่างน้อย 1 ตัว')
-    .regex(/[a-z]/, 'รหัสผ่านต้องมีตัวอักษรพิมพ์เล็กอย่างน้อย 1 ตัว')
-    .regex(/[0-9]/, 'รหัสผ่านต้องมีตัวเลขอย่างน้อย 1 ตัว'),
+    .min(6, 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร'),
   confirmPassword: z.string(),
   
   // Terms
@@ -43,14 +35,11 @@ const RegisterPage = () => {
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [checkingSubdomain, setCheckingSubdomain] = useState(false)
-  const [subdomainAvailable, setSubdomainAvailable] = useState<boolean | null>(null)
   
   const {
     register,
     handleSubmit,
     formState: { errors },
-    watch,
     setError
   } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
@@ -59,36 +48,11 @@ const RegisterPage = () => {
     }
   })
 
-  const subdomain = watch('subdomain')
-
-  // Check subdomain availability
-  const checkSubdomainAvailability = async (value: string) => {
-    if (!value || value.length < 3 || !/^[a-z0-9-]+$/.test(value)) {
-      setSubdomainAvailable(null)
-      return
-    }
-
-    setCheckingSubdomain(true)
-    try {
-      const available = await authService.checkSubdomainAvailability(value)
-      setSubdomainAvailable(available)
-      
-      if (!available) {
-        setError('subdomain', {
-          type: 'manual',
-          message: 'subdomain นี้ถูกใช้งานแล้ว'
-        })
-      }
-    } catch (error) {
-      console.error('Error checking subdomain:', error)
-    } finally {
-      setCheckingSubdomain(false)
-    }
-  }
-
   const onSubmit = async (data: RegisterFormData) => {
     try {
       setLoading(true)
+      
+      console.log('📝 Form submitted:', { ...data, password: '***' })
       
       // Register new school and owner
       await authService.registerSchool({
@@ -96,24 +60,23 @@ const RegisterPage = () => {
         password: data.password,
         firstName: data.firstName,
         lastName: data.lastName,
-        schoolName: data.schoolName,
-        subdomain: data.subdomain
+        schoolName: data.schoolName
       })
       
       toast.success('ลงทะเบียนสำเร็จ! กำลังเข้าสู่ระบบ...')
       
-      // Redirect to the new school subdomain
+      // Navigate to dashboard after successful registration
       setTimeout(() => {
-        window.location.href = `https://${data.subdomain}.classpass.app/dashboard`
-      }, 2000)
+        navigate('/dashboard')
+      }, 1500)
       
     } catch (error: any) {
       console.error('Registration error:', error)
       
-      if (error.code === 'auth/email-already-in-use') {
+      if (error.message?.includes('อีเมล')) {
         setError('email', {
           type: 'manual',
-          message: 'อีเมลนี้ถูกใช้งานแล้ว'
+          message: error.message
         })
       } else {
         toast.error(error.message || 'เกิดข้อผิดพลาดในการลงทะเบียน')
@@ -126,6 +89,15 @@ const RegisterPage = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 to-orange-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
+        {/* Back to home */}
+        <Link 
+          to="/" 
+          className="inline-flex items-center text-gray-600 hover:text-primary-600 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          กลับหน้าหลัก
+        </Link>
+
         <div>
           <div className="mx-auto h-16 w-16 bg-primary-500 rounded-xl flex items-center justify-center">
             <span className="text-white font-bold text-2xl">C</span>
@@ -144,60 +116,22 @@ const RegisterPage = () => {
             <div>
               <h3 className="text-lg font-medium text-gray-900 mb-4">ข้อมูลโรงเรียน</h3>
               
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    ชื่อโรงเรียน
-                  </label>
-                  <div className="relative">
-                    <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                    <input
-                      {...register('schoolName')}
-                      type="text"
-                      className="input-base pl-10"
-                      placeholder="โรงเรียนสอนคณิตศาสตร์ ABC"
-                    />
-                  </div>
-                  {errors.schoolName && (
-                    <p className="mt-1 text-sm text-red-600">{errors.schoolName.message}</p>
-                  )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  ชื่อโรงเรียน
+                </label>
+                <div className="relative">
+                  <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <input
+                    {...register('schoolName')}
+                    type="text"
+                    className="input-base pl-10"
+                    placeholder="โรงเรียนสอนคณิตศาสตร์ ABC"
+                  />
                 </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Subdomain
-                  </label>
-                  <div className="flex items-center">
-                    <div className="relative flex-1">
-                      <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                      <input
-                        {...register('subdomain')}
-                        type="text"
-                        className="input-base pl-10 pr-32"
-                        placeholder="mathgenius"
-                        onBlur={(e) => checkSubdomainAvailability(e.target.value)}
-                      />
-                      <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-gray-500">
-                        .classpass.app
-                      </span>
-                    </div>
-                  </div>
-                  {checkingSubdomain && (
-                    <p className="mt-1 text-sm text-gray-500 flex items-center">
-                      <Loader2 className="w-4 h-4 animate-spin mr-1" />
-                      กำลังตรวจสอบ...
-                    </p>
-                  )}
-                  {!checkingSubdomain && subdomainAvailable === true && subdomain && (
-                    <p className="mt-1 text-sm text-green-600">✓ subdomain นี้สามารถใช้ได้</p>
-                  )}
-                  {errors.subdomain && (
-                    <p className="mt-1 text-sm text-red-600">{errors.subdomain.message}</p>
-                  )}
-                  <p className="mt-1 text-xs text-gray-500">
-                    URL โรงเรียนของคุณจะเป็น: https://{subdomain || 'yourschool'}.classpass.app
-                  </p>
-                </div>
+                {errors.schoolName && (
+                  <p className="mt-1 text-sm text-red-600">{errors.schoolName.message}</p>
+                )}
               </div>
             </div>
 
@@ -281,6 +215,9 @@ const RegisterPage = () => {
                   {errors.password && (
                     <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>
                   )}
+                  <p className="mt-1 text-xs text-gray-500">
+                    รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร
+                  </p>
                 </div>
 
                 <div>

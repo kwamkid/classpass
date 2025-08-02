@@ -15,10 +15,9 @@ export interface User {
   lastLogin?: Date
 }
 
-// School Types
+// School Types - removed subdomain
 export interface School {
   id: string
-  subdomain: string
   name: string
   logo?: string
   address?: string
@@ -26,12 +25,31 @@ export interface School {
   email?: string
   lineOA?: string
   website?: string
+  taxId?: string
   timezone: string
   currency: string
+  dateFormat: string
+  language: string
+  businessHours?: Record<string, { open: string; close: string }>
   plan: 'free' | 'basic' | 'pro' | 'enterprise'
+  planExpiry?: Date | null
+  maxStudents: number
+  maxTeachers: number
+  maxCourses: number
+  storageQuota: number
+  features: {
+    onlinePayment: boolean
+    parentApp: boolean
+    apiAccess: boolean
+    customDomain: boolean
+    whiteLabel: boolean
+  }
+  billingEmail?: string
   isActive: boolean
+  isVerified: boolean
   createdAt: Date
   updatedAt: Date
+  lastActiveAt?: Date
 }
 
 // Student Types
@@ -200,11 +218,11 @@ export interface LoginCredentials {
   password: string
 }
 
+// Updated RegisterData without subdomain
 export interface RegisterData {
   email: string
   password: string
   firstName: string
   lastName: string
   schoolName: string
-  subdomain: string
 }
