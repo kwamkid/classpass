@@ -199,6 +199,130 @@ export const checkInStudent = async (
   }
 }
 
+// Check in a student with specific date (for backdate check-in)
+export const checkInStudentWithDate = async (
+  schoolId: string,
+  userId: string,
+  userName: string,
+  userRole: string,
+  data: CheckInData,
+  checkInDate: string // วันที่ที่ต้องการเช็คชื่อ
+): Promise<Attendance> => {
+  try {
+    return await runTransaction(db, async (transaction) => {
+      // Get student data
+      const studentRef = doc(db, 'students', data.studentId)
+      const studentDoc = await transaction.get(studentRef)
+      if (!studentDoc.exists()) {
+        throw new Error('Student not found')
+      }
+      const student = studentDoc.data()
+      
+      // Get course data
+      const courseRef = doc(db, 'courses', data.courseId)
+      const courseDoc = await transaction.get(courseRef)
+      if (!courseDoc.exists()) {
+        throw new Error('Course not found')
+      }
+      const course = courseDoc.data()
+      
+      // Get credit data
+      const creditRef = doc(db, 'student_credits', data.creditId)
+      const creditDoc = await transaction.get(creditRef)
+      if (!creditDoc.exists()) {
+        throw new Error('Credit not found')
+      }
+      const credit = creditDoc.data()
+      
+      // Validate credit
+      if (credit.status !== 'active') {
+        throw new Error('Credit is not active')
+      }
+      
+      if (credit.remainingCredits < 1) {
+        throw new Error('ไม่มีเครดิตเหลือ')
+      }
+      
+      // Check if expired
+      if (credit.hasExpiry && credit.expiryDate) {
+        if (credit.expiryDate < checkInDate) {
+          throw new Error('เครดิตหมดอายุแล้ว')
+        }
+      }
+      
+      // Create attendance record
+      const now = new Date()
+      const attendanceData = {
+        schoolId,
+        studentId: data.studentId,
+        courseId: data.courseId,
+        creditId: data.creditId,
+        
+        // Student & Course Info
+        studentCode: student.studentCode,
+        studentName: `${student.firstName} ${student.lastName}`,
+        studentNickname: student.nickname || '',
+        courseName: course.name,
+        courseCode: course.code || '',
+        
+        // Check-in Information - ใช้วันที่ที่ส่งมา
+        checkInDate: checkInDate,
+        checkInTime: now.toISOString(),
+        checkInMethod: data.checkInMethod || 'manual',
+        
+        // Session Information
+        sessionDate: checkInDate,
+        
+        // Credit Deduction
+        creditsDeducted: 1,
+        creditsBefore: credit.remainingCredits,
+        creditsAfter: credit.remainingCredits - 1,
+        
+        // Status
+        status: 'present' as const,
+        isLate: data.isLate || false,
+        lateMinutes: data.lateMinutes || 0,
+        
+        // Checker Information
+        checkedBy: userId,
+        checkedByName: userName,
+        checkedByRole: userRole,
+        
+        // Timestamps
+        createdAt: serverTimestamp()
+      }
+      
+      // Only add teacherNotes if it exists
+      if (data.teacherNotes) {
+        (attendanceData as any).teacherNotes = data.teacherNotes
+      }
+      
+      // Create attendance document
+      const attendanceRef = doc(collection(db, 'attendance'))
+      transaction.set(attendanceRef, attendanceData)
+      
+      // Update credit balance
+      transaction.update(creditRef, {
+        usedCredits: credit.usedCredits + 1,
+        remainingCredits: credit.remainingCredits - 1,
+        lastUsedDate: checkInDate,
+        status: credit.remainingCredits - 1 === 0 ? 'depleted' : credit.status,
+        updatedAt: serverTimestamp()
+      })
+      
+      // Return created attendance
+      return {
+        id: attendanceRef.id,
+        ...attendanceData,
+        createdAt: new Date()
+      } as Attendance
+    })
+  } catch (error: any) {
+    console.error('Error checking in student with date:', error)
+    throw new Error(error.message || 'เกิดข้อผิดพลาดในการเช็คชื่อ')
+  }
+}
+
 // Get today's attendance for a course
 export const getTodayAttendance = async (
   schoolId: string,

@@ -159,18 +159,20 @@ const StudentDetailPage = () => {
     }
   }
 
-  const calculateAge = (birthDate: string) => {
-    const today = new Date()
-    const birth = new Date(birthDate)
-    let age = today.getFullYear() - birth.getFullYear()
-    const monthDiff = today.getMonth() - birth.getMonth()
-    
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
-      age--
-    }
-    
-    return `${age} ปี`
+ const calculateAge = (birthDate?: string) => {
+  if (!birthDate) return '-'
+  
+  const today = new Date()
+  const birth = new Date(birthDate)
+  let age = today.getFullYear() - birth.getFullYear()
+  const monthDiff = today.getMonth() - birth.getMonth()
+  
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+    age--
   }
+  
+  return `${age} ปี`
+}
 
   const totalCredits = creditDetails.reduce((sum, credit) => sum + credit.remainingCredits, 0)
   const attendanceRate = totalCredits > 0 ? Math.round((totalAttendances / (totalAttendances + totalCredits)) * 100) : 0
@@ -307,15 +309,18 @@ const StudentDetailPage = () => {
                 </div>
                 
                 <div>
-                  <p className="text-sm text-gray-500">วันเกิด</p>
-                  <p className="text-base font-medium text-gray-900">
-                    {new Date(student.birthDate).toLocaleDateString('th-TH', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric'
-                    })}
-                  </p>
-                </div>
+                <p className="text-sm text-gray-500">วันเกิด</p>
+                <p className="text-base font-medium text-gray-900">
+                  {student.birthDate 
+                    ? new Date(student.birthDate).toLocaleDateString('th-TH', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      })
+                    : '-'
+                  }
+                </p>
+              </div>
                 
                 <div>
                   <p className="text-sm text-gray-500">อายุ</p>

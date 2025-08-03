@@ -12,7 +12,9 @@ import {
   CreditCard,
   ChevronRight,
   BookOpen,
-  User
+  User,
+  CalendarClock,
+  ChevronLeft
 } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
 import * as studentService from '../../services/student'
@@ -32,13 +34,19 @@ const AttendancePage = () => {
   // Data
   const [students, setStudents] = useState<studentService.Student[]>([])
   const [courses, setCourses] = useState<courseService.Course[]>([])
-  const [todayAttendance, setTodayAttendance] = useState<attendanceService.Attendance[]>([])
+  const [selectedDateAttendance, setSelectedDateAttendance] = useState<attendanceService.Attendance[]>([])
   const [studentCredits, setStudentCredits] = useState<Map<string, studentCreditService.StudentCredit[]>>(new Map())
   
   // Search & Filter
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCourse, setSelectedCourse] = useState<courseService.Course | null>(null)
   const [filteredStudents, setFilteredStudents] = useState<studentService.Student[]>([])
+  
+  // Date selection
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
+  const [showBackdateModal, setShowBackdateModal] = useState(false)
+  const [backdateReason, setBackdateReason] = useState('')
+  const [pendingCheckIn, setPendingCheckIn] = useState<studentService.Student | null>(null)
   
   // Stats
   const [stats, setStats] = useState({
@@ -53,14 +61,14 @@ const AttendancePage = () => {
 
   useEffect(() => {
     filterStudents()
-  }, [searchTerm, students])
+  }, [searchTerm, students, studentCredits, selectedCourse])
 
   useEffect(() => {
     if (selectedCourse && students.length > 0) {
-      loadTodayAttendance()
+      loadSelectedDateAttendance()
       loadStudentCredits()
     }
-  }, [selectedCourse, students])
+  }, [selectedCourse, students, selectedDate])
 
   const loadInitialData = async () => {
     if (!user?.schoolId) return
@@ -94,22 +102,50 @@ const AttendancePage = () => {
     }
   }
 
-  const loadTodayAttendance = async () => {
+  const loadSelectedDateAttendance = async () => {
     if (!user?.schoolId || !selectedCourse) return
     
     try {
-      const attendance = await attendanceService.getTodayAttendance(
-        user.schoolId,
-        selectedCourse.id
+      // Get attendance for selected date
+      const attendanceRef = collection(db, 'attendance')
+      const q = query(
+        attendanceRef,
+        where('schoolId', '==', user.schoolId),
+        where('courseId', '==', selectedCourse.id),
+        where('checkInDate', '==', selectedDate)
       )
-      setTodayAttendance(attendance)
       
-      // Update stats
-      const checkedInStudentIds = new Set(attendance.map(a => a.studentId))
+      const snapshot = await getDocs(q)
+      const attendances: attendanceService.Attendance[] = []
+      
+      snapshot.docs.forEach(doc => {
+        const data = doc.data() as any
+        attendances.push({
+          id: doc.id,
+          ...data,
+          createdAt: data.createdAt?.toDate() || new Date(),
+          updatedAt: data.updatedAt?.toDate()
+        })
+      })
+      
+      setSelectedDateAttendance(attendances)
+      
+      // Update stats to reflect only students with credits
+      const checkedInStudentIds = new Set(attendances.map(a => a.studentId))
+      const studentsWithCredits = students.filter(student => {
+        const credits = studentCredits.get(student.id) || []
+        const courseCredits = credits.filter(c => 
+          c.status === 'active' && 
+          c.remainingCredits > 0 &&
+          c.courseId === selectedCourse.id
+        )
+        return courseCredits.length > 0
+      })
+      
       setStats({
-        totalStudents: students.length,
+        totalStudents: studentsWithCredits.length,
         checkedIn: checkedInStudentIds.size,
-        absent: students.length - checkedInStudentIds.size
+        absent: studentsWithCredits.length - checkedInStudentIds.size
       })
     } catch (error) {
       console.error('Error loading attendance:', error)
@@ -164,39 +200,52 @@ const AttendancePage = () => {
   }
 
   const filterStudents = () => {
-    if (!searchTerm.trim()) {
-      setFilteredStudents(students)
-      return
+    let filtered = students
+    
+    // Filter by search term
+    if (searchTerm.trim()) {
+      const search = searchTerm.toLowerCase()
+      filtered = filtered.filter(student => {
+        // Search by student name, nickname
+        if (
+          student.firstName.toLowerCase().includes(search) ||
+          student.lastName.toLowerCase().includes(search) ||
+          student.nickname?.toLowerCase().includes(search) ||
+          student.studentCode.toLowerCase().includes(search)
+        ) {
+          return true
+        }
+        
+        // Search by parent name or phone
+        if (student.parents && student.parents.length > 0) {
+          return student.parents.some(parent => 
+            parent.firstName.toLowerCase().includes(search) ||
+            parent.lastName.toLowerCase().includes(search) ||
+            parent.phone.includes(search)
+          )
+        }
+        
+        // Search by student phone
+        if (student.phone?.includes(search)) {
+          return true
+        }
+        
+        return false
+      })
     }
     
-    const search = searchTerm.toLowerCase()
-    const filtered = students.filter(student => {
-      // Search by student name, nickname
-      if (
-        student.firstName.toLowerCase().includes(search) ||
-        student.lastName.toLowerCase().includes(search) ||
-        student.nickname?.toLowerCase().includes(search) ||
-        student.studentCode.toLowerCase().includes(search)
-      ) {
-        return true
-      }
-      
-      // Search by parent name or phone
-      if (student.parents && student.parents.length > 0) {
-        return student.parents.some(parent => 
-          parent.firstName.toLowerCase().includes(search) ||
-          parent.lastName.toLowerCase().includes(search) ||
-          parent.phone.includes(search)
+    // Filter out students without credits for this course
+    if (selectedCourse) {
+      filtered = filtered.filter(student => {
+        const credits = studentCredits.get(student.id) || []
+        const courseCredits = credits.filter(c => 
+          c.status === 'active' && 
+          c.remainingCredits > 0 &&
+          c.courseId === selectedCourse.id
         )
-      }
-      
-      // Search by student phone
-      if (student.phone?.includes(search)) {
-        return true
-      }
-      
-      return false
-    })
+        return courseCredits.length > 0
+      })
+    }
     
     setFilteredStudents(filtered)
   }
@@ -206,6 +255,21 @@ const AttendancePage = () => {
       toast.error('กรุณาเลือกวิชาก่อน')
       return
     }
+    
+    // ถ้าเป็นการเช็คชื่อย้อนหลัง ให้แสดง modal
+    const today = new Date().toISOString().split('T')[0]
+    if (selectedDate !== today) {
+      setPendingCheckIn(student)
+      setShowBackdateModal(true)
+      return
+    }
+    
+    // ถ้าเป็นวันนี้ เช็คชื่อได้เลย
+    await performCheckIn(student)
+  }
+
+  const performCheckIn = async (student: studentService.Student, isBackdate: boolean = false) => {
+    if (!user || !selectedCourse) return
     
     try {
       setCheckingIn(student.id)
@@ -225,36 +289,42 @@ const AttendancePage = () => {
         return
       }
       
-      // Check in
+      // Check in with selected date
       const checkInData: attendanceService.CheckInData = {
         studentId: student.id,
         courseId: selectedCourse.id,
         creditId: activeCredit.id,
-        checkInMethod: 'manual'
+        checkInMethod: 'manual',
+        teacherNotes: isBackdate ? `เช็คชื่อย้อนหลัง: ${backdateReason}` : undefined
       }
       
-      const attendance = await attendanceService.checkInStudent(
+      // For backdate, we need to modify the attendance service
+      const attendance = await attendanceService.checkInStudentWithDate(
         user.schoolId,
         user.id,
         user.displayName || `${user.firstName} ${user.lastName}`,
         user.role,
-        checkInData
+        checkInData,
+        selectedDate
       )
       
       toast.success(`เช็คชื่อ ${student.firstName} สำเร็จ!`)
       
       // Reload attendance and credits
-      await loadTodayAttendance()
+      await loadSelectedDateAttendance()
       await loadStudentCredits()
     } catch (error: any) {
       toast.error(error.message || 'เกิดข้อผิดพลาดในการเช็คชื่อ')
     } finally {
       setCheckingIn(null)
+      setShowBackdateModal(false)
+      setBackdateReason('')
+      setPendingCheckIn(null)
     }
   }
 
   const isCheckedIn = (studentId: string) => {
-    return todayAttendance.some(a => a.studentId === studentId)
+    return selectedDateAttendance.some(a => a.studentId === studentId)
   }
 
   const getStudentCredit = (studentId: string): number => {
@@ -278,7 +348,7 @@ const AttendancePage = () => {
       toast.success(`ยกเลิกการเช็คชื่อและคืนเครดิตให้ ${attendance.studentName} แล้ว`)
       
       // Reload data
-      await loadTodayAttendance()
+      await loadSelectedDateAttendance()
       await loadStudentCredits()
     } catch (error) {
       toast.error('ไม่สามารถยกเลิกการเช็คชื่อได้')
@@ -291,6 +361,38 @@ const AttendancePage = () => {
       minute: '2-digit'
     })
   }
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString)
+    const today = new Date()
+    const yesterday = new Date(today)
+    yesterday.setDate(yesterday.getDate() - 1)
+    
+    if (dateString === today.toISOString().split('T')[0]) {
+      return 'วันนี้'
+    } else if (dateString === yesterday.toISOString().split('T')[0]) {
+      return 'เมื่อวาน'
+    } else {
+      return date.toLocaleDateString('th-TH', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      })
+    }
+  }
+
+  const changeDate = (direction: 'prev' | 'next') => {
+    const currentDate = new Date(selectedDate)
+    if (direction === 'prev') {
+      currentDate.setDate(currentDate.getDate() - 1)
+    } else {
+      currentDate.setDate(currentDate.getDate() + 1)
+    }
+    setSelectedDate(currentDate.toISOString().split('T')[0])
+  }
+
+  const isToday = selectedDate === new Date().toISOString().split('T')[0]
+  const isPastDate = selectedDate < new Date().toISOString().split('T')[0]
 
   if (loading) {
     return (
@@ -308,13 +410,52 @@ const AttendancePage = () => {
         {/* Header */}
         <div className="mb-4 md:mb-8">
           <h1 className="text-xl md:text-2xl font-bold text-gray-900">เช็คชื่อนักเรียน</h1>
-          <p className="mt-1 text-xs md:text-sm text-gray-500">
-            วันที่ {new Date().toLocaleDateString('th-TH', {
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric'
-            })}
-          </p>
+          
+          {/* Date Selector */}
+          <div className="mt-3 flex items-center gap-3">
+            <button
+              onClick={() => changeDate('prev')}
+              className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              max={new Date().toISOString().split('T')[0]}
+              className="input-base text-sm w-auto"
+            />
+            
+            <button
+              onClick={() => changeDate('next')}
+              disabled={isToday}
+              className={`p-2 rounded-md ${
+                isToday 
+                  ? 'text-gray-300 cursor-not-allowed' 
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+            
+            {isPastDate && (
+              <span className="text-sm text-orange-600 flex items-center">
+                <CalendarClock className="w-4 h-4 mr-1" />
+                เช็คชื่อย้อนหลัง
+              </span>
+            )}
+            
+            {!isToday && (
+              <button
+                onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
+                className="px-3 py-1.5 text-sm bg-primary-600 text-white rounded-md hover:bg-primary-700 whitespace-nowrap"
+              >
+                วันนี้
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Course Selection */}
@@ -391,7 +532,7 @@ const AttendancePage = () => {
                 <input
                   type="text"
                   placeholder="ค้นหาด้วยชื่อนักเรียน, ชื่อเล่น, ชื่อผู้ปกครอง, เบอร์โทร..."
-                  className="input-base pl-9 md:pl-10 text-sm md:text-lg"
+                  className="input-base pl-9 md:pl-10 text-sm md:text-base"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   autoFocus
@@ -409,8 +550,11 @@ const AttendancePage = () => {
               ) : (
                 filteredStudents.map(student => {
                   const checkedIn = isCheckedIn(student.id)
-                  const attendance = todayAttendance.find(a => a.studentId === student.id)
+                  const attendance = selectedDateAttendance.find(a => a.studentId === student.id)
                   const remainingCredits = getStudentCredit(student.id)
+                  
+                  // Double check - should not happen because of filterStudents
+                  if (remainingCredits === 0) return null
                   
                   return (
                     <div
@@ -580,12 +724,12 @@ const AttendancePage = () => {
                       </div>
                     </div>
                   )
-                })
+                }).filter(Boolean)
               )}
             </div>
 
             {/* Today's Attendance Summary - Mobile optimized */}
-            {todayAttendance.length > 0 && (
+            {selectedDateAttendance.length > 0 && (
               <div className="mt-6 md:mt-8">
                 <h2 className="text-base md:text-lg font-medium text-gray-900 mb-3 md:mb-4">
                   รายชื่อนักเรียนที่เช็คชื่อแล้ว
@@ -593,7 +737,7 @@ const AttendancePage = () => {
                 
                 {/* Mobile Card View */}
                 <div className="md:hidden space-y-3">
-                  {todayAttendance.map((attendance, index) => (
+                  {selectedDateAttendance.map((attendance, index) => (
                     <div key={attendance.id} className="bg-white rounded-lg shadow-sm p-4">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center space-x-3">
@@ -616,6 +760,11 @@ const AttendancePage = () => {
                           </p>
                         </div>
                       </div>
+                      {attendance.teacherNotes && (
+                        <p className="text-xs text-gray-600 mt-2 italic">
+                          หมายเหตุ: {attendance.teacherNotes}
+                        </p>
+                      )}
                       <button
                         onClick={() => handleCancelAttendance(attendance)}
                         className="w-full mt-2 text-red-600 hover:text-red-900 text-sm font-medium py-1 border border-red-200 rounded hover:bg-red-50"
@@ -643,13 +792,16 @@ const AttendancePage = () => {
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           ผู้เช็คชื่อ
                         </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          หมายเหตุ
+                        </th>
                         <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                           จัดการ
                         </th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {todayAttendance.map((attendance, index) => (
+                      {selectedDateAttendance.map((attendance, index) => (
                         <tr key={attendance.id}>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {index + 1}
@@ -669,6 +821,9 @@ const AttendancePage = () => {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             {attendance.checkedByName}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-600">
+                            {attendance.teacherNotes || '-'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-center">
                             <button
@@ -691,6 +846,89 @@ const AttendancePage = () => {
             <BookOpen className="w-10 h-10 md:w-12 md:h-12 text-gray-400 mx-auto mb-3 md:mb-4" />
             <h3 className="text-base md:text-lg font-medium text-gray-900 mb-2">กรุณาเลือกวิชา</h3>
             <p className="text-sm md:text-base text-gray-500">เลือกวิชาที่ต้องการเช็คชื่อนักเรียน</p>
+          </div>
+        )}
+
+        {/* Backdate Modal */}
+        {showBackdateModal && pendingCheckIn && (
+          <div className="fixed inset-0 z-50 overflow-y-auto">
+            <div className="flex items-center justify-center min-h-screen px-4">
+              <div 
+                className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" 
+                onClick={() => {
+                  setShowBackdateModal(false)
+                  setBackdateReason('')
+                  setPendingCheckIn(null)
+                }}
+              />
+              
+              <div className="bg-white rounded-lg shadow-xl relative z-10 max-w-md w-full p-6">
+                <div className="flex items-start">
+                  <div className="flex-shrink-0">
+                    <CalendarClock className="w-6 h-6 text-orange-500" />
+                  </div>
+                  <div className="ml-3 flex-1">
+                    <h3 className="text-lg font-medium text-gray-900">
+                      ยืนยันการเช็คชื่อย้อนหลัง
+                    </h3>
+                    <div className="mt-2">
+                      <p className="text-sm text-gray-500">
+                        คุณกำลังเช็คชื่อ <strong>{pendingCheckIn.firstName} {pendingCheckIn.lastName}</strong>
+                        <br />
+                        สำหรับวันที่ <strong>{formatDate(selectedDate)}</strong>
+                      </p>
+                      
+                      <div className="mt-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          เหตุผลในการเช็คชื่อย้อนหลัง <span className="text-red-500">*</span>
+                        </label>
+                        <textarea
+                          value={backdateReason}
+                          onChange={(e) => setBackdateReason(e.target.value)}
+                          className="input-base text-sm"
+                          rows={3}
+                          placeholder="เช่น ลืมเช็คชื่อ, ระบบขัดข้อง, อื่นๆ"
+                          autoFocus
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="mt-5 flex space-x-3">
+                      <button
+                        onClick={() => {
+                          if (!backdateReason.trim()) {
+                            toast.error('กรุณาระบุเหตุผล')
+                            return
+                          }
+                          performCheckIn(pendingCheckIn, true)
+                        }}
+                        disabled={!backdateReason.trim() || checkingIn === pendingCheckIn.id}
+                        className="btn-primary flex-1"
+                      >
+                        {checkingIn === pendingCheckIn.id ? (
+                          <>
+                            <div className="spinner mr-2"></div>
+                            กำลังเช็คชื่อ...
+                          </>
+                        ) : (
+                          'ยืนยันเช็คชื่อ'
+                        )}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowBackdateModal(false)
+                          setBackdateReason('')
+                          setPendingCheckIn(null)
+                        }}
+                        className="btn-secondary flex-1"
+                      >
+                        ยกเลิก
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>

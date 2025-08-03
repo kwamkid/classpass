@@ -22,7 +22,7 @@ export interface Student {
   firstName: string
   lastName: string
   nickname?: string
-  birthDate: string
+  birthDate?: string
   age?: number
   gender: 'male' | 'female' | 'other'
   currentGrade: string
@@ -62,7 +62,7 @@ export interface CreateStudentData {
   firstName: string
   lastName: string
   nickname?: string
-  birthDate: string
+  birthDate?: string
   gender: 'male' | 'female' | 'other'
   currentGrade: string
   phone?: string
@@ -72,8 +72,9 @@ export interface CreateStudentData {
   parentEmail?: string
 }
 
-// Calculate age from birthdate
-const calculateAge = (birthDate: string): number => {
+const calculateAge = (birthDate?: string): number | undefined => {
+  if (!birthDate) return undefined
+  
   const today = new Date()
   const birth = new Date(birthDate)
   let age = today.getFullYear() - birth.getFullYear()
@@ -225,7 +226,7 @@ export const createStudent = async (
     const studentCode = await generateStudentCode(schoolId)
     
     // Calculate age
-    const age = calculateAge(data.birthDate)
+    const age = data.birthDate ? calculateAge(data.birthDate) : undefined
     
     // Prepare student data
     const studentData = {

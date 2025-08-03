@@ -94,9 +94,9 @@ const AddStudentPage = () => {
     if (!formData.lastName.trim()) {
       newErrors.lastName = 'กรุณากรอกนามสกุล'
     }
-    if (!formData.birthDate) {
-      newErrors.birthDate = 'กรุณาเลือกวันเกิด'
-    }
+    // if (!formData.birthDate) {
+    //   newErrors.birthDate = 'กรุณาเลือกวันเกิด'
+    // }
     if (!formData.currentGrade) {
       newErrors.currentGrade = 'กรุณาเลือกระดับชั้น'
     }
@@ -262,7 +262,7 @@ const AddStudentPage = () => {
               {/* Birth Date */}
               <div>
                 <label className="block text-base font-medium text-gray-700 mb-2">
-                  วันเกิด <span className="text-red-500">*</span>
+                  วันเกิด
                 </label>
                 <div className="relative">
                   <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
