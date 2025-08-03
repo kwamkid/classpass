@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
 import { useSchoolStore } from '../../stores/schoolStore'
+import UserAvatar from '../common/UserAvatar'
 import toast from 'react-hot-toast'
 
 interface LayoutProps {
@@ -94,6 +95,13 @@ const Layout = ({ children }: LayoutProps) => {
     {
       title: 'การเงิน',
       items: [
+         { 
+          path: '/credits/purchase', 
+          icon: CreditCard, 
+          label: 'ซื้อแพ็คเกจ',
+          roles: ['owner', 'admin'],
+          color: 'text-blue-600'
+        },
         { 
           path: '/credits/history', 
           icon: Receipt, 
@@ -186,17 +194,11 @@ const Layout = ({ children }: LayoutProps) => {
             <div className="sticky top-0 z-10 bg-white border-b border-gray-200">
               <div className="flex items-center h-16 px-4">
                 <Link to="/dashboard" className="flex items-center space-x-3">
-                  {school?.logo ? (
-                    <img 
-                      src={school.logo} 
-                      alt={school.name}
-                      className="w-10 h-10 rounded-lg object-cover"
-                    />
-                  ) : (
-                    <div className="w-10 h-10 bg-primary-500 rounded-lg flex items-center justify-center">
-                      <span className="text-white font-bold text-xl">C</span>
-                    </div>
-                  )}
+                  <img 
+                    src="/logo.svg" 
+                    alt="ClassPass Logo"
+                    className="w-10 h-10"
+                  />
                   <span className="text-xl font-bold text-gray-900">ClassPass</span>
                 </Link>
               </div>
@@ -219,19 +221,11 @@ const Layout = ({ children }: LayoutProps) => {
             <div className="sticky bottom-0 bg-white border-t border-gray-200">
               <div className="p-4">
                 <div className="flex items-center">
-                  {user?.profileImage ? (
-                    <img 
-                      src={user.profileImage} 
-                      alt={user.displayName}
-                      className="w-10 h-10 rounded-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
-                      <span className="text-primary-600 font-semibold">
-                        {user?.firstName?.[0] || 'U'}
-                      </span>
-                    </div>
-                  )}
+                  <UserAvatar 
+                    user={user} 
+                    size="md" 
+                    showBorder={true}
+                  />
                   <div className="ml-3 flex-1">
                     <p className="text-sm font-medium text-gray-900">{user?.displayName}</p>
                     <p className="text-xs text-gray-500">{user?.email}</p>
@@ -260,17 +254,11 @@ const Layout = ({ children }: LayoutProps) => {
           <div className="fixed inset-y-0 left-0 z-50 flex flex-col w-72 bg-white lg:hidden">
             <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200">
               <Link to="/dashboard" className="flex items-center space-x-3">
-                {school?.logo ? (
-                  <img 
-                    src={school.logo} 
-                    alt={school.name}
-                    className="w-10 h-10 rounded-lg object-cover"
-                  />
-                ) : (
-                  <div className="w-10 h-10 bg-primary-500 rounded-lg flex items-center justify-center">
-                    <span className="text-white font-bold text-xl">C</span>
-                  </div>
-                )}
+                <img 
+                  src="/logo.svg" 
+                  alt="ClassPass Logo"
+                  className="w-10 h-10"
+                />
                 <span className="text-xl font-bold text-gray-900">ClassPass</span>
               </Link>
               <button
@@ -299,19 +287,11 @@ const Layout = ({ children }: LayoutProps) => {
             <div className="border-t border-gray-200">
               <div className="p-4">
                 <div className="flex items-center">
-                  {user?.profileImage ? (
-                    <img 
-                      src={user.profileImage} 
-                      alt={user.displayName}
-                      className="w-10 h-10 rounded-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
-                      <span className="text-primary-600 font-semibold">
-                        {user?.firstName?.[0] || 'U'}
-                      </span>
-                    </div>
-                  )}
+                  <UserAvatar 
+                    user={user} 
+                    size="md" 
+                    showBorder={true}
+                  />
                   <div className="ml-3 flex-1">
                     <p className="text-sm font-medium text-gray-900">{user?.displayName}</p>
                     <p className="text-xs text-gray-500">{user?.email}</p>
@@ -353,17 +333,11 @@ const Layout = ({ children }: LayoutProps) => {
 
               {/* Mobile logo */}
               <div className="lg:hidden flex items-center">
-                {school?.logo ? (
-                  <img 
-                    src={school.logo} 
-                    alt={school.name}
-                    className="w-8 h-8 rounded object-cover"
-                  />
-                ) : (
-                  <div className="w-8 h-8 bg-primary-500 rounded flex items-center justify-center">
-                    <span className="text-white font-bold">C</span>
-                  </div>
-                )}
+                <img 
+                  src="/logo.svg" 
+                  alt="ClassPass Logo"
+                  className="w-8 h-8"
+                />
                 <span className="ml-2 text-lg font-semibold">ClassPass</span>
               </div>
 
@@ -381,19 +355,10 @@ const Layout = ({ children }: LayoutProps) => {
                     onClick={() => setUserMenuOpen(!userMenuOpen)}
                     className="flex items-center space-x-3 text-gray-700 hover:text-gray-900"
                   >
-                    {user?.profileImage ? (
-                      <img 
-                        src={user.profileImage} 
-                        alt={user.displayName}
-                        className="w-8 h-8 rounded-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">
-                        <span className="text-primary-600 font-semibold text-sm">
-                          {user?.firstName?.[0] || 'U'}
-                        </span>
-                      </div>
-                    )}
+                    <UserAvatar 
+                      user={user} 
+                      size="sm" 
+                    />
                     <span className="text-sm font-medium">{user?.firstName}</span>
                     <ChevronDown className="w-4 h-4" />
                   </button>
@@ -407,12 +372,12 @@ const Layout = ({ children }: LayoutProps) => {
                       />
                       <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-20">
                         <Link
-                          to="/profile"
+                          to="/profile/edit"
                           className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                           onClick={() => setUserMenuOpen(false)}
                         >
                           <User className="w-4 h-4 inline mr-2" />
-                          โปรไฟล์
+                          แก้ไขโปรไฟล์
                         </Link>
                         <Link
                           to="/settings"

@@ -4,24 +4,18 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Building, Mail, Lock, User, Loader2, Eye, EyeOff, ArrowLeft } from 'lucide-react'
+import { Building, Mail, Lock, Eye, EyeOff, Loader2, ArrowLeft } from 'lucide-react'
 import * as authService from '../../services/auth'
 import toast from 'react-hot-toast'
 
-// Validation schema - removed subdomain
+// Validation schema
 const registerSchema = z.object({
-  // School info
   schoolName: z.string().min(1, 'กรุณากรอกชื่อโรงเรียน'),
-  
-  // Owner info
   firstName: z.string().min(1, 'กรุณากรอกชื่อ'),
   lastName: z.string().min(1, 'กรุณากรอกนามสกุล'),
   email: z.string().email('อีเมลไม่ถูกต้อง'),
-  password: z.string()
-    .min(6, 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร'),
+  password: z.string().min(6, 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร'),
   confirmPassword: z.string(),
-  
-  // Terms
   acceptTerms: z.boolean().refine(val => val === true, 'กรุณายอมรับข้อตกลงการใช้งาน')
 }).refine((data) => data.password === data.confirmPassword, {
   message: "รหัสผ่านไม่ตรงกัน",
@@ -54,7 +48,6 @@ const RegisterPage = () => {
       
       console.log('📝 Form submitted:', { ...data, password: '***' })
       
-      // Register new school and owner
       await authService.registerSchool({
         email: data.email,
         password: data.password,
@@ -65,7 +58,6 @@ const RegisterPage = () => {
       
       toast.success('ลงทะเบียนสำเร็จ! กำลังเข้าสู่ระบบ...')
       
-      // Navigate to dashboard after successful registration
       setTimeout(() => {
         navigate('/dashboard')
       }, 1500)
@@ -87,8 +79,8 @@ const RegisterPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 to-orange-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
+    <div className="min-h-screen bg-gradient-to-br from-primary-50 to-white flex items-center justify-center p-4">
+      <div className="max-w-md w-full space-y-6">
         {/* Back to home */}
         <Link 
           to="/" 
@@ -98,34 +90,34 @@ const RegisterPage = () => {
           กลับหน้าหลัก
         </Link>
 
-        <div>
-          <div className="mx-auto h-16 w-16 bg-primary-500 rounded-xl flex items-center justify-center">
+        {/* Logo & Title */}
+        <div className="text-center">
+          <div className="mx-auto h-16 w-16 bg-primary-500 rounded-xl flex items-center justify-center mb-4">
             <span className="text-white font-bold text-2xl">C</span>
           </div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            สร้างบัญชี ClassPass ใหม่
-          </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
-            เริ่มต้นใช้งานฟรี ไม่ต้องใช้บัตรเครดิต
-          </p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">สร้างบัญชี ClassPass ใหม่</h1>
+          <p className="text-gray-600">เริ่มต้นใช้งานฟรี ไม่ต้องใช้บัตรเครดิต</p>
         </div>
 
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>
-          <div className="bg-white shadow-xl rounded-lg p-6 space-y-6">
+        {/* Register Card */}
+        <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-8">
+          <form className="space-y-6" onSubmit={handleSubmit(onSubmit)}>
             {/* School Information */}
             <div>
-              <h3 className="text-lg font-medium text-gray-900 mb-4">ข้อมูลโรงเรียน</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">ข้อมูลโรงเรียน</h3>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   ชื่อโรงเรียน
                 </label>
                 <div className="relative">
-                  <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Building className="h-5 w-5 text-gray-400" />
+                  </div>
                   <input
                     {...register('schoolName')}
                     type="text"
-                    className="input-base pl-10"
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
                     placeholder="โรงเรียนสอนคณิตศาสตร์ ABC"
                   />
                 </div>
@@ -139,18 +131,18 @@ const RegisterPage = () => {
 
             {/* Owner Information */}
             <div>
-              <h3 className="text-lg font-medium text-gray-900 mb-4">ข้อมูลเจ้าของ</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">ข้อมูลเจ้าของ</h3>
               
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
                       ชื่อ
                     </label>
                     <input
                       {...register('firstName')}
                       type="text"
-                      className="input-base"
+                      className="w-full px-3 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
                       placeholder="สมชาย"
                     />
                     {errors.firstName && (
@@ -159,13 +151,13 @@ const RegisterPage = () => {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
                       นามสกุล
                     </label>
                     <input
                       {...register('lastName')}
                       type="text"
-                      className="input-base"
+                      className="w-full px-3 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
                       placeholder="ใจดี"
                     />
                     {errors.lastName && (
@@ -175,15 +167,17 @@ const RegisterPage = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
                     อีเมล
                   </label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Mail className="h-5 w-5 text-gray-400" />
+                    </div>
                     <input
                       {...register('email')}
                       type="email"
-                      className="input-base pl-10"
+                      className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
                       placeholder="admin@school.com"
                     />
                   </div>
@@ -193,21 +187,23 @@ const RegisterPage = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
                     รหัสผ่าน
                   </label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Lock className="h-5 w-5 text-gray-400" />
+                    </div>
                     <input
                       {...register('password')}
                       type={showPassword ? 'text' : 'password'}
-                      className="input-base pl-10 pr-10"
+                      className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
                       placeholder="••••••••"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
                     >
                       {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                     </button>
@@ -221,21 +217,23 @@ const RegisterPage = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
                     ยืนยันรหัสผ่าน
                   </label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Lock className="h-5 w-5 text-gray-400" />
+                    </div>
                     <input
                       {...register('confirmPassword')}
                       type={showConfirmPassword ? 'text' : 'password'}
-                      className="input-base pl-10 pr-10"
+                      className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
                       placeholder="••••••••"
                     />
                     <button
                       type="button"
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
                     >
                       {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                     </button>
@@ -277,33 +275,21 @@ const RegisterPage = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full btn-primary py-3"
+              className="w-full bg-primary-500 text-white py-3 px-4 rounded-lg font-medium hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (
-                <>
-                  <Loader2 className="w-5 h-5 mr-2 animate-spin inline" />
+                <div className="flex items-center justify-center">
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
                   กำลังสร้างบัญชี...
-                </>
+                </div>
               ) : (
                 'สร้างบัญชี'
               )}
             </button>
-          </div>
-
-          {/* Features */}
-          <div className="bg-blue-50 rounded-lg p-4">
-            <h4 className="font-medium text-blue-900 mb-2">สิ่งที่คุณจะได้รับ:</h4>
-            <ul className="space-y-1 text-sm text-blue-700">
-              <li>✓ ใช้งานฟรีตลอดกาล สำหรับนักเรียนไม่เกิน 50 คน</li>
-              <li>✓ ระบบจัดการเครดิตการเรียนแบบครบวงจร</li>
-              <li>✓ รายงานและสถิติแบบ Real-time</li>
-              <li>✓ รองรับการใช้งานบนมือถือ 100%</li>
-              <li>✓ ไม่ต้องติดตั้งโปรแกรม ใช้งานผ่านเว็บได้ทันที</li>
-            </ul>
-          </div>
+          </form>
 
           {/* Sign in link */}
-          <div className="text-center">
+          <div className="text-center mt-6">
             <span className="text-sm text-gray-600">
               มีบัญชีอยู่แล้ว?{' '}
               <Link to="/login" className="font-medium text-primary-600 hover:text-primary-500">
@@ -311,7 +297,33 @@ const RegisterPage = () => {
               </Link>
             </span>
           </div>
-        </form>
+        </div>
+
+        {/* Features */}
+        <div className="bg-blue-50 rounded-lg border border-blue-200 p-4">
+          <h4 className="font-medium text-blue-900 mb-2">สิ่งที่คุณจะได้รับ:</h4>
+          <ul className="space-y-1 text-sm text-blue-700">
+            <li>✓ ใช้งานฟรีตลอดกาล สำหรับนักเรียนไม่เกิน 50 คน</li>
+            <li>✓ ระบบจัดการเครดิตการเรียนแบบครบวงจร</li>
+            <li>✓ รายงานและสถิติแบบ Real-time</li>
+            <li>✓ รองรับการใช้งานบนมือถือ 100%</li>
+            <li>✓ ไม่ต้องติดตั้งโปรแกรม ใช้งานผ่านเว็บได้ทันที</li>
+          </ul>
+        </div>
+
+        {/* Footer */}
+        <div className="text-center text-sm text-gray-500">
+          <p>
+            &copy; 2024 ClassPass. สงวนลิขสิทธิ์ | {' '}
+            <Link to="/terms" className="hover:text-gray-700 transition-colors">
+              ข้อตกลงการใช้งาน
+            </Link>
+            {' '} | {' '}
+            <Link to="/privacy" className="hover:text-gray-700 transition-colors">
+              นโยบายความเป็นส่วนตัว
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   )

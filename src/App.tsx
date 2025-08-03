@@ -40,6 +40,9 @@ const ReportsPage = lazy(() => import('./pages/reports/ReportsPage'))
 const UsersPage = lazy(() => import('./pages/users/UsersPage'))
 const AddUserPage = lazy(() => import('./pages/users/AddUserPage'))
 const EditUserPage = lazy(() => import('./pages/users/EditUserPage'))
+const EditProfilePage = lazy(() => import('./pages/profile/EditProfilePage'))
+const ChangePasswordPage = lazy(() => import('./pages/profile/ChangePasswordPage'))
+
 
 // Loading component
 const PageLoader = () => (
@@ -228,6 +231,19 @@ return (
               <SettingsPage />
             </ProtectedRoute>
           } />
+
+          {/* Profile routes */}
+          <Route path="/profile/edit" element={
+            <ProtectedRoute>
+              <EditProfilePage />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/profile/change-password" element={
+            <ProtectedRoute>
+              <ChangePasswordPage />
+            </ProtectedRoute>
+          } />
           
           {/* Reports routes */}
           <Route path="/reports" element={
@@ -238,19 +254,19 @@ return (
           
           {/* User management routes */}
           <Route path="/users" element={
-            <ProtectedRoute allowedRoles={['owner', 'admin']}>
+            <ProtectedRoute allowedRoles={['owner']}>
               <UsersPage />
             </ProtectedRoute>
           } />
           
           <Route path="/users/add" element={
-            <ProtectedRoute allowedRoles={['owner', 'admin']}>
+            <ProtectedRoute allowedRoles={['owner']}>
               <AddUserPage />
             </ProtectedRoute>
           } />
           
           <Route path="/users/:id/edit" element={
-            <ProtectedRoute allowedRoles={['owner', 'admin']}>
+            <ProtectedRoute allowedRoles={['owner']}>
               <EditUserPage />
             </ProtectedRoute>
           } />

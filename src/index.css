@@ -219,6 +219,11 @@
   .text-gradient {
     @apply bg-clip-text text-transparent bg-gradient-to-r from-primary-500 to-primary-700;
   }
+
+  .dropdown-menu {
+    position: fixed !important;
+    z-index: 9999 !important;
+  }
 }
 
 /* Mobile specific styles */

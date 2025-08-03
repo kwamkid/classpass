@@ -14,7 +14,11 @@ import {
   Printer,
   CheckCircle,
   XCircle,
-  Clock
+  Clock,
+  ShoppingBag,
+  TrendingDown,
+  DollarSign,
+  Package
 } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
 import * as studentCreditService from '../../services/studentCredit'
@@ -137,8 +141,8 @@ const CreditHistoryPage = () => {
     const Icon = config.icon
     
     return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.bg} ${config.text}`}>
-        <Icon className="w-3 h-3 mr-1" />
+      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${config.bg} ${config.text}`}>
+        <Icon className="w-4 h-4 mr-1.5" />
         {config.label}
       </span>
     )
@@ -155,7 +159,7 @@ const CreditHistoryPage = () => {
     const config = methodConfig[method as keyof typeof methodConfig] || methodConfig.cash
     
     return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.bg} ${config.text}`}>
+      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${config.bg} ${config.text}`}>
         {config.label}
       </span>
     )
@@ -191,24 +195,27 @@ const CreditHistoryPage = () => {
         {/* Header */}
         <div className="mb-8">
           <Link
-            to="/packages"
-            className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-4"
+            to="/credits/purchase"
+            className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-4 text-base"
           >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            กลับไปหน้าแพ็คเกจ
+            <ArrowLeft className="w-5 h-5 mr-2" />
+            กลับไปหน้าซื้อแพ็คเกจ
           </Link>
           
           <div className="flex justify-between items-start">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">ประวัติการซื้อแพ็คเกจ</h1>
-              <p className="mt-1 text-sm text-gray-500">
+              <h1 className="text-3xl font-bold text-gray-900 flex items-center">
+                <Clock className="w-8 h-8 mr-3 text-primary-600" />
+                ประวัติการซื้อแพ็คเกจ
+              </h1>
+              <p className="mt-2 text-base text-gray-500">
                 ดูประวัติการซื้อและจัดการเครดิตทั้งหมด
               </p>
             </div>
             
             <button
               onClick={exportToExcel}
-              className="btn-secondary inline-flex items-center"
+              className="btn-secondary inline-flex items-center text-base"
             >
               <Download className="w-5 h-5 mr-2" />
               ส่งออก Excel
@@ -217,67 +224,79 @@ const CreditHistoryPage = () => {
         </div>
 
         {/* Summary Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white p-4 rounded-lg shadow-sm">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500">ยอดขายทั้งหมด</p>
-                <p className="text-2xl font-semibold text-gray-900">
-                  {stats.totalSales}
+                <p className="text-sm font-medium text-gray-500">ยอดขายทั้งหมด</p>
+                <p className="text-3xl font-bold text-gray-900 mt-2">
+                  {stats.totalSales.toLocaleString()}
                 </p>
+                <p className="text-sm text-gray-500 mt-1">รายการ</p>
               </div>
-              <Receipt className="w-8 h-8 text-gray-400" />
+              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                <Receipt className="w-6 h-6 text-blue-600" />
+              </div>
             </div>
           </div>
           
-          <div className="bg-white p-4 rounded-lg shadow-sm">
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500">มูลค่ารวม</p>
-                <p className="text-2xl font-semibold text-green-600">
+                <p className="text-sm font-medium text-gray-500">มูลค่ารวม</p>
+                <p className="text-3xl font-bold text-green-600 mt-2">
                   {formatPrice(stats.totalAmount)}
                 </p>
+                <p className="text-sm text-gray-500 mt-1">บาท</p>
               </div>
-              <TrendingUp className="w-8 h-8 text-green-400" />
+              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                <DollarSign className="w-6 h-6 text-green-600" />
+              </div>
             </div>
           </div>
           
-          <div className="bg-white p-4 rounded-lg shadow-sm">
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500">ใช้งานได้</p>
-                <p className="text-2xl font-semibold text-blue-600">
-                  {stats.activeCredits}
+                <p className="text-sm font-medium text-gray-500">ใช้งานได้</p>
+                <p className="text-3xl font-bold text-blue-600 mt-2">
+                  {stats.activeCredits.toLocaleString()}
                 </p>
+                <p className="text-sm text-gray-500 mt-1">แพ็คเกจ</p>
               </div>
-              <CheckCircle className="w-8 h-8 text-blue-400" />
+              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                <CheckCircle className="w-6 h-6 text-blue-600" />
+              </div>
             </div>
           </div>
           
-          <div className="bg-white p-4 rounded-lg shadow-sm">
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500">หมดอายุ</p>
-                <p className="text-2xl font-semibold text-red-600">
-                  {stats.expiredCredits}
+                <p className="text-sm font-medium text-gray-500">หมดอายุ</p>
+                <p className="text-3xl font-bold text-red-600 mt-2">
+                  {stats.expiredCredits.toLocaleString()}
                 </p>
+                <p className="text-sm text-gray-500 mt-1">แพ็คเกจ</p>
               </div>
-              <XCircle className="w-8 h-8 text-red-400" />
+              <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+                <XCircle className="w-6 h-6 text-red-600" />
+              </div>
             </div>
           </div>
         </div>
 
         {/* Filters */}
-        <div className="bg-white p-4 rounded-lg shadow-sm mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            {/* Search */}
-            <div className="md:col-span-2">
+        <div className="bg-white p-6 rounded-xl shadow-sm mb-6">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+            {/* Search - Takes more space */}
+            <div className="lg:col-span-4">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="ค้นหาด้วยชื่อ, รหัสนักเรียน, เลขที่ใบเสร็จ..."
-                  className="input-base pl-10"
+                  placeholder="ค้นหาชื่อ, รหัส, ใบเสร็จ..."
+                  className="input-base pl-10 text-base w-full"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
@@ -285,9 +304,9 @@ const CreditHistoryPage = () => {
             </div>
 
             {/* Course Filter */}
-            <div>
+            <div className="lg:col-span-2">
               <select
-                className="input-base"
+                className="input-base text-base w-full"
                 value={selectedCourse}
                 onChange={(e) => setSelectedCourse(e.target.value)}
               >
@@ -301,9 +320,9 @@ const CreditHistoryPage = () => {
             </div>
 
             {/* Status Filter */}
-            <div>
+            <div className="lg:col-span-2">
               <select
-                className="input-base"
+                className="input-base text-base w-full"
                 value={selectedStatus}
                 onChange={(e) => setSelectedStatus(e.target.value)}
               >
@@ -314,23 +333,24 @@ const CreditHistoryPage = () => {
               </select>
             </div>
 
-            {/* Date Range */}
-            <div className="flex items-center space-x-2">
-              <input
-                type="date"
-                className="input-base"
-                value={dateRange.start}
-                onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
-                placeholder="วันที่เริ่ม"
-              />
-              <span className="text-gray-500">-</span>
-              <input
-                type="date"
-                className="input-base"
-                value={dateRange.end}
-                onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
-                placeholder="วันที่สิ้นสุด"
-              />
+            {/* Date Range - Stacked on mobile, side by side on desktop */}
+            <div className="lg:col-span-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <input
+                  type="date"
+                  className="input-base text-base w-full"
+                  value={dateRange.start}
+                  onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                  placeholder="วันที่เริ่ม"
+                />
+                <input
+                  type="date"
+                  className="input-base text-base w-full"
+                  value={dateRange.end}
+                  onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                  placeholder="วันที่สิ้นสุด"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -341,49 +361,49 @@ const CreditHistoryPage = () => {
             <div className="spinner spinner-primary w-8 h-8"></div>
           </div>
         ) : credits.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-sm p-12 text-center">
-            <Receipt className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">ไม่พบประวัติการซื้อ</h3>
-            <p className="text-gray-500 mb-4">ยังไม่มีการซื้อแพ็คเกจในช่วงเวลาที่เลือก</p>
+          <div className="bg-white rounded-xl shadow-sm p-12 text-center">
+            <Receipt className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-xl font-medium text-gray-900 mb-2">ไม่พบประวัติการซื้อ</h3>
+            <p className="text-gray-500 mb-6">ยังไม่มีการซื้อแพ็คเกจในช่วงเวลาที่เลือก</p>
             <Link
               to="/credits/purchase"
-              className="btn-primary inline-flex items-center"
+              className="btn-primary inline-flex items-center text-base"
             >
-              <CreditCard className="w-5 h-5 mr-2" />
-              ขายแพ็คเกจ
+              <ShoppingBag className="w-5 h-5 mr-2" />
+              ซื้อแพ็คเกจ
             </Link>
           </div>
         ) : (
-          <div className="bg-white shadow-sm rounded-lg overflow-hidden">
+          <div className="bg-white shadow-sm rounded-xl overflow-hidden">
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       เลขที่ใบเสร็จ
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       วันที่ซื้อ
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       นักเรียน
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       แพ็คเกจ
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       เครดิต
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       ยอดชำระ
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       ช่องทาง
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       สถานะ
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-4 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                       การดำเนินการ
                     </th>
                   </tr>
@@ -391,11 +411,15 @@ const CreditHistoryPage = () => {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {credits.map((credit) => (
                     <tr key={credit.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {credit.receiptNumber || '-'}
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <p className="text-sm font-medium text-gray-900">
+                          {credit.receiptNumber || '-'}
+                        </p>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {formatDate(credit.paymentDate || credit.purchaseDate)}
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <p className="text-sm text-gray-600">
+                          {formatDate(credit.paymentDate || credit.purchaseDate)}
+                        </p>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div>
@@ -419,12 +443,15 @@ const CreditHistoryPage = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm">
-                          <span className="font-medium text-gray-900">
-                            {credit.remainingCredits}/{credit.totalCredits}
-                          </span>
-                          <span className="text-gray-500 ml-1">ครั้ง</span>
-                          {credit.daysUntilExpiry !== null && credit.daysUntilExpiry <= 7 && (
-                            <p className="text-xs text-red-600 mt-1">
+                          <div className="flex items-center">
+                            <span className="font-medium text-gray-900">
+                              {credit.remainingCredits}/{credit.totalCredits}
+                            </span>
+                            <span className="text-gray-500 ml-1">ครั้ง</span>
+                          </div>
+                          {credit.daysUntilExpiry !== null && credit.daysUntilExpiry <= 7 && credit.daysUntilExpiry > 0 && (
+                            <p className="text-xs text-orange-600 mt-1 flex items-center">
+                              <Clock className="w-3 h-3 mr-1" />
                               หมดอายุใน {credit.daysUntilExpiry} วัน
                             </p>
                           )}
@@ -432,7 +459,7 @@ const CreditHistoryPage = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div>
-                          <p className="text-sm font-medium text-gray-900">
+                          <p className="text-sm font-semibold text-gray-900">
                             {formatPrice(credit.finalPrice)}
                           </p>
                           {credit.discountAmount > 0 && (
@@ -448,21 +475,21 @@ const CreditHistoryPage = () => {
                       <td className="px-6 py-4 whitespace-nowrap">
                         {getStatusBadge(credit.status)}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex items-center space-x-2">
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <div className="flex items-center justify-center space-x-2">
                           <Link
                             to={`/credits/receipt/${credit.id}`}
-                            className="text-primary-600 hover:text-primary-900"
+                            className="p-2 text-primary-600 hover:text-primary-700 hover:bg-primary-50 rounded-md transition-colors"
                             title="ดูใบเสร็จ"
                           >
-                            <Eye className="w-4 h-4" />
+                            <Eye className="w-5 h-5" />
                           </Link>
                           <button
                             onClick={() => window.print()}
-                            className="text-gray-600 hover:text-gray-900"
+                            className="p-2 text-gray-600 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
                             title="พิมพ์ใบเสร็จ"
                           >
-                            <Printer className="w-4 h-4" />
+                            <Printer className="w-5 h-5" />
                           </button>
                         </div>
                       </td>
@@ -473,6 +500,17 @@ const CreditHistoryPage = () => {
             </div>
           </div>
         )}
+        
+        {/* Add New Purchase Button */}
+        <div className="mt-8 text-center">
+          <Link
+            to="/credits/purchase"
+            className="btn-primary inline-flex items-center text-base"
+          >
+            <ShoppingBag className="w-5 h-5 mr-2" />
+            ซื้อแพ็คเกจเพิ่ม
+          </Link>
+        </div>
       </div>
     </Layout>
   )

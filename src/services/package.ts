@@ -197,7 +197,7 @@ export const createPackage = async (
     if (data.courseId) {
       const courseDoc = await getDoc(doc(db, 'courses', data.courseId))
       if (courseDoc.exists()) {
-        courseName = courseDoc.data().name
+        courseName = courseDoc.data().name || ''
       }
     }
     
@@ -230,6 +230,8 @@ export const createPackage = async (
     if (data.validityType !== 'unlimited' && data.validityValue) {
       packageData.validityValue = data.validityValue
     }
+    
+    console.log('Creating package with data:', packageData)
     
     // Create document
     const docRef = await addDoc(collection(db, 'credit_packages'), packageData)

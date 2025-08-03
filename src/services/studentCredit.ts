@@ -125,6 +125,8 @@ export const purchaseCredits = async (
       }
       const creditPackage = packageDoc.data()
       
+      console.log('Package data:', creditPackage)
+      
       // Get course data
       const courseRef = doc(db, 'courses', creditPackage.courseId)
       const courseDoc = await transaction.get(courseRef)
@@ -132,6 +134,8 @@ export const purchaseCredits = async (
         throw new Error('Course not found')
       }
       const course = courseDoc.data()
+      
+      console.log('Course data:', course)
       
       // Calculate dates
       const purchaseDate = new Date()
@@ -148,24 +152,24 @@ export const purchaseCredits = async (
         courseId: creditPackage.courseId,
         packageId: data.packageId,
         
-        // Reference info
+        // Reference info - ตรวจสอบและใส่ค่า default ถ้าเป็น undefined
         studentName: `${student.firstName} ${student.lastName}`,
-        studentCode: student.studentCode,
-        courseName: course.name,
-        packageName: creditPackage.name,
-        packageCode: creditPackage.code,
+        studentCode: student.studentCode || '',
+        courseName: course.name || creditPackage.courseName || '',
+        packageName: creditPackage.name || '',
+        packageCode: creditPackage.code || '',
         
         // Credit info
-        totalCredits: creditPackage.totalCreditsWithBonus || creditPackage.credits,
+        totalCredits: creditPackage.totalCreditsWithBonus || creditPackage.credits || 0,
         bonusCredits: creditPackage.bonusCredits || 0,
         usedCredits: 0,
-        remainingCredits: creditPackage.totalCreditsWithBonus || creditPackage.credits,
+        remainingCredits: creditPackage.totalCreditsWithBonus || creditPackage.credits || 0,
         
         // Financial info
-        originalPrice: creditPackage.price,
+        originalPrice: creditPackage.price || 0,
         discountAmount: data.discountAmount || 0,
-        finalPrice: data.paymentAmount,
-        pricePerCredit: data.paymentAmount / (creditPackage.totalCreditsWithBonus || creditPackage.credits),
+        finalPrice: data.paymentAmount || 0,
+        pricePerCredit: data.paymentAmount / (creditPackage.totalCreditsWithBonus || creditPackage.credits || 1),
         paymentStatus: 'paid' as const,
         paymentMethod: data.paymentMethod,
         paymentDate: purchaseDate.toISOString(),
@@ -176,10 +180,14 @@ export const purchaseCredits = async (
         activationDate: purchaseDate.toISOString().split('T')[0],
         
         // Status - ตรวจสอบให้แน่ใจว่า set เป็น 'active'
-        status: 'active',
+        status: 'active' as const,
         
         // Receipt
-        receiptNumber: generateReceiptNumber()
+        receiptNumber: generateReceiptNumber(),
+        
+        // Timestamps
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
       }
       
       // Add optional fields
@@ -195,17 +203,23 @@ export const purchaseCredits = async (
         creditData.expiryDate = expiryDate.toISOString().split('T')[0]
       }
       
+      console.log('Final credit data to be saved:', creditData)
+      
+      // Validate critical fields
+      const requiredFields = ['schoolId', 'studentId', 'courseId', 'packageId', 'studentName', 'courseName', 'packageName']
+      for (const field of requiredFields) {
+        if (!creditData[field]) {
+          throw new Error(`Required field ${field} is missing or undefined`)
+        }
+      }
+      
       // Create credit document
       const creditRef = collection(db, 'student_credits')
       const newCreditRef = doc(creditRef)
       
-      transaction.set(newCreditRef, {
-        ...creditData,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      })
+      transaction.set(newCreditRef, creditData)
       
-      console.log('Credit data to be saved:', creditData)
+      console.log('Credit purchased successfully with ID:', newCreditRef.id)
       
       return {
         id: newCreditRef.id,

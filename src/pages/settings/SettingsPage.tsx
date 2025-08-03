@@ -10,12 +10,15 @@ import {
   Save,
   Upload,
   X,
-  RotateCcw
+  RotateCcw,
+  Edit,
+  Key
 } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
 import { useSchoolStore } from '../../stores/schoolStore'
 import { useOnboardingStore } from '../../stores/onboardingStore'
 import { useOnboardingComplete } from '../../hooks/useOnboardingComplete'
+import UserAvatar from '../../components/common/UserAvatar'
 import * as schoolService from '../../services/school'
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { storage } from '../../services/firebase'
@@ -40,29 +43,12 @@ const SettingsPage = () => {
     website: school?.website || '',
     taxId: school?.taxId || ''
   })
-  
-  // Notification settings
-  const [notifications, setNotifications] = useState({
-    emailNotifications: true,
-    lineNotifications: false,
-    studentAbsent: true,
-    lowCredits: true,
-    newStudent: true,
-    paymentReceived: true
-  })
 
   const handleSchoolDataChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
     setSchoolData(prev => ({
       ...prev,
       [name]: value
-    }))
-  }
-
-  const handleNotificationChange = (key: string) => {
-    setNotifications(prev => ({
-      ...prev,
-      [key]: !prev[key]
     }))
   }
 
@@ -128,8 +114,6 @@ const SettingsPage = () => {
   const tabs = [
     { id: 'school', label: 'ข้อมูลโรงเรียน', icon: Building },
     { id: 'profile', label: 'โปรไฟล์', icon: User },
-    { id: 'notifications', label: 'การแจ้งเตือน', icon: Bell },
-    { id: 'billing', label: 'บิลลิ่ง', icon: CreditCard },
     { id: 'security', label: 'ความปลอดภัย', icon: Shield }
   ]
 
@@ -154,7 +138,7 @@ const SettingsPage = () => {
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                    className={`w-full flex items-center px-3 py-2 text-base font-medium rounded-md transition-colors ${
                       activeTab === tab.id
                         ? 'bg-primary-50 text-primary-700 border-l-4 border-primary-500'
                         : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
@@ -365,140 +349,97 @@ const SettingsPage = () => {
                   ข้อมูลส่วนตัว
                 </h2>
                 
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-sm text-gray-500">อีเมล</p>
-                    <p className="text-base font-medium">{user?.email}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">ชื่อ-นามสกุล</p>
-                    <p className="text-base font-medium">
-                      {user?.firstName} {user?.lastName}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">ตำแหน่ง</p>
-                    <p className="text-base font-medium">
+                {/* User Avatar และข้อมูลหลัก */}
+                <div className="flex items-center space-x-6 mb-6 p-4 bg-gray-50 rounded-lg">
+                  <UserAvatar 
+                    user={user} 
+                    size="xl" 
+                    showBorder={true}
+                  />
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      {user?.displayName}
+                    </h3>
+                    <p className="text-sm text-gray-600 mb-1">{user?.email}</p>
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      user?.role === 'owner' 
+                        ? 'bg-purple-100 text-purple-800' 
+                        : user?.role === 'admin'
+                        ? 'bg-blue-100 text-blue-800'
+                        : 'bg-green-100 text-green-800'
+                    }`}>
                       {user?.role === 'owner' ? 'เจ้าของ' :
                        user?.role === 'admin' ? 'ผู้ดูแลระบบ' : 'ครูผู้สอน'}
+                    </span>
+                  </div>
+                </div>
+                
+                {/* ข้อมูลรายละเอียด */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      ชื่อ
+                    </label>
+                    <p className="text-base text-gray-900 p-3 bg-gray-50 rounded-md">
+                      {user?.firstName}
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      นามสกุล
+                    </label>
+                    <p className="text-base text-gray-900 p-3 bg-gray-50 rounded-md">
+                      {user?.lastName}
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      อีเมล
+                    </label>
+                    <p className="text-base text-gray-900 p-3 bg-gray-50 rounded-md">
+                      {user?.email}
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      เบอร์โทรศัพท์
+                    </label>
+                    <p className="text-base text-gray-900 p-3 bg-gray-50 rounded-md">
+                      {user?.phone || 'ไม่ได้ระบุ'}
+                    </p>
+                  </div>
+                  
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      วันที่สร้างบัญชี
+                    </label>
+                    <p className="text-base text-gray-900 p-3 bg-gray-50 rounded-md">
+                      {user?.createdAt ? new Date(user.createdAt).toLocaleDateString('th-TH', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      }) : 'ไม่ทราบ'}
                     </p>
                   </div>
                 </div>
-              </div>
-            )}
-
-            {/* Notification Settings */}
-            {activeTab === 'notifications' && (
-              <div className="bg-white shadow-sm rounded-lg p-6">
-                <h2 className="text-lg font-medium text-gray-900 mb-6">
-                  การแจ้งเตือน
-                </h2>
                 
-                <div className="space-y-4">
-                  <h3 className="text-sm font-medium text-gray-900">ช่องทางการแจ้งเตือน</h3>
-                  
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={notifications.emailNotifications}
-                      onChange={() => handleNotificationChange('emailNotifications')}
-                      className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                    />
-                    <span className="ml-2 text-sm text-gray-700">
-                      แจ้งเตือนผ่านอีเมล
-                    </span>
-                  </label>
-                  
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={notifications.lineNotifications}
-                      onChange={() => handleNotificationChange('lineNotifications')}
-                      className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                    />
-                    <span className="ml-2 text-sm text-gray-700">
-                      แจ้งเตือนผ่าน Line
-                    </span>
-                  </label>
-                  
-                  <hr className="my-4" />
-                  
-                  <h3 className="text-sm font-medium text-gray-900">ประเภทการแจ้งเตือน</h3>
-                  
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={notifications.studentAbsent}
-                      onChange={() => handleNotificationChange('studentAbsent')}
-                      className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                    />
-                    <span className="ml-2 text-sm text-gray-700">
-                      นักเรียนขาดเรียน
-                    </span>
-                  </label>
-                  
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={notifications.lowCredits}
-                      onChange={() => handleNotificationChange('lowCredits')}
-                      className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                    />
-                    <span className="ml-2 text-sm text-gray-700">
-                      เครดิตใกล้หมด
-                    </span>
-                  </label>
-                  
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={notifications.newStudent}
-                      onChange={() => handleNotificationChange('newStudent')}
-                      className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                    />
-                    <span className="ml-2 text-sm text-gray-700">
-                      มีนักเรียนใหม่
-                    </span>
-                  </label>
-                  
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={notifications.paymentReceived}
-                      onChange={() => handleNotificationChange('paymentReceived')}
-                      className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                    />
-                    <span className="ml-2 text-sm text-gray-700">
-                      ได้รับการชำระเงิน
-                    </span>
-                  </label>
-                </div>
-              </div>
-            )}
-
-            {/* Billing Settings */}
-            {activeTab === 'billing' && (
-              <div className="bg-white shadow-sm rounded-lg p-6">
-                <h2 className="text-lg font-medium text-gray-900 mb-6">
-                  ข้อมูลบิลลิ่ง
-                </h2>
-                
-                <div className="space-y-4">
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <div className="flex items-center">
-                      <Globe className="w-5 h-5 text-blue-600 mr-2" />
-                      <div>
-                        <p className="font-medium text-blue-900">แพ็คเกจ: {school?.plan || 'Free'}</p>
-                        <p className="text-sm text-blue-700">
-                          นักเรียนสูงสุด {school?.maxStudents || 50} คน
-                        </p>
-                      </div>
-                    </div>
+                {/* การดำเนินการ */}
+                <div className="mt-6 pt-6 border-t border-gray-200">
+                  <div className="flex flex-wrap gap-3">
+                    <button className="btn-secondary">
+                      <Edit className="w-4 h-4 mr-2" />
+                      แก้ไขข้อมูล
+                    </button>
+                    <button className="btn-secondary">
+                      <Key className="w-4 h-4 mr-2" />
+                      เปลี่ยนรหัสผ่าน
+                    </button>
                   </div>
-                  
-                  <p className="text-sm text-gray-500">
-                    ต้องการอัพเกรดแพ็คเกจ? ติดต่อ support@classpass.app
-                  </p>
                 </div>
               </div>
             )}

@@ -19,6 +19,7 @@ import {
   CheckCircle
 } from 'lucide-react'
 import Layout from '../../components/layout/Layout'
+import UserAvatar from '../../components/common/UserAvatar'
 import { useAuthStore } from '../../stores/authStore'
 import { useSchoolStore } from '../../stores/schoolStore'
 import * as userService from '../../services/user'
@@ -298,20 +299,12 @@ const UsersPage = () => {
                     <tr key={user.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
-                          <div className="flex-shrink-0 h-10 w-10">
-                            {user.profileImage ? (
-                              <img
-                                className="h-10 w-10 rounded-full object-cover"
-                                src={user.profileImage}
-                                alt={user.displayName}
-                              />
-                            ) : (
-                              <div className="h-10 w-10 rounded-full bg-primary-100 flex items-center justify-center">
-                                <span className="text-primary-600 font-medium">
-                                  {user.firstName[0]}
-                                </span>
-                              </div>
-                            )}
+                          <div className="flex-shrink-0">
+                            <UserAvatar 
+                              user={user} 
+                              size="md" 
+                              showBorder={true}
+                            />
                           </div>
                           <div className="ml-4">
                             <div className="text-sm font-medium text-gray-900">

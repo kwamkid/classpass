@@ -72,28 +72,28 @@ const Login = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-white flex items-center justify-center p-4">
-      <div className="max-w-md w-full">
+    <div className="min-h-screen bg-gradient-to-br from-primary-50 to-white flex items-center justify-center p-4">
+      <div className="max-w-md w-full space-y-6">
         {/* Back to home */}
         <Link 
           to="/" 
-          className="inline-flex items-center text-gray-600 hover:text-primary-600 mb-8 transition-colors"
+          className="inline-flex items-center text-gray-600 hover:text-primary-600 transition-colors"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
           กลับหน้าหลัก
         </Link>
 
-        {/* Login Card */}
-        <div className="bg-white rounded-xl shadow-lg p-8">
-          {/* Logo & Title */}
-          <div className="text-center mb-8">
-            <div className="mx-auto h-16 w-16 bg-primary-500 rounded-xl flex items-center justify-center mb-4">
-              <span className="text-white font-bold text-2xl">C</span>
-            </div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">เข้าสู่ระบบ ClassPass</h1>
-            <p className="text-gray-600">จัดการโรงเรียนของคุณได้ง่ายและสะดวก</p>
+        {/* Logo & Title */}
+        <div className="text-center">
+          <div className="mx-auto h-16 w-16 bg-primary-500 rounded-xl flex items-center justify-center mb-4">
+            <span className="text-white font-bold text-2xl">C</span>
           </div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">เข้าสู่ระบบ ClassPass</h1>
+          <p className="text-gray-600">จัดการโรงเรียนของคุณได้ง่ายและสะดวก</p>
+        </div>
 
+        {/* Login Card */}
+        <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-8">
           <form className="space-y-6" onSubmit={handleSubmit(onSubmit)}>
             {/* Email */}
             <div>
@@ -108,7 +108,12 @@ const Login = () => {
                   {...register('email')}
                   type="email"
                   autoComplete="email"
-                  className={`input-base pl-10 ${errors.email ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : ''}`}
+                  className={`
+                    w-full pl-10 pr-4 py-3 border rounded-lg text-sm
+                    focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500
+                    transition-colors
+                    ${errors.email ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : 'border-gray-300'}
+                  `}
                   placeholder="your@email.com"
                   disabled={loading}
                 />
@@ -131,7 +136,12 @@ const Login = () => {
                   {...register('password')}
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="current-password"
-                  className={`input-base pl-10 pr-10 ${errors.password ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : ''}`}
+                  className={`
+                    w-full pl-10 pr-10 py-3 border rounded-lg text-sm
+                    focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500
+                    transition-colors
+                    ${errors.password ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : 'border-gray-300'}
+                  `}
                   placeholder="••••••••"
                   disabled={loading}
                 />
@@ -171,14 +181,14 @@ const Login = () => {
             {/* Submit Button */}
             <button 
               type="submit" 
-              className="btn-primary w-full flex items-center justify-center py-3"
+              className="w-full bg-primary-500 text-white py-3 px-4 rounded-lg font-medium hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={loading}
             >
               {loading ? (
-                <>
+                <div className="flex items-center justify-center">
                   <Loader2 className="w-5 h-5 mr-2 animate-spin" />
                   กำลังเข้าสู่ระบบ...
-                </>
+                </div>
               ) : (
                 'เข้าสู่ระบบ'
               )}
@@ -207,35 +217,35 @@ const Login = () => {
               </Link>
             </p>
           </div>
+        </div>
 
-          {/* Demo Accounts */}
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-            <h4 className="text-sm font-medium text-blue-900 mb-2">บัญชีทดลอง:</h4>
-            <div className="space-y-1 text-xs text-blue-700">
-              <div className="flex items-center justify-between">
-                <span>Owner:</span>
-                <span className="font-mono bg-blue-100 px-2 py-0.5 rounded">
-                  demo@owner.com / demo1234
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Admin:</span>
-                <span className="font-mono bg-blue-100 px-2 py-0.5 rounded">
-                  demo@admin.com / demo1234
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Teacher:</span>
-                <span className="font-mono bg-blue-100 px-2 py-0.5 rounded">
-                  demo@teacher.com / demo1234
-                </span>
-              </div>
+        {/* Demo Accounts */}
+        <div className="bg-blue-50 rounded-lg border border-blue-200 p-4">
+          <h4 className="text-sm font-medium text-blue-900 mb-2">บัญชีทดลอง:</h4>
+          <div className="space-y-1 text-xs text-blue-700">
+            <div className="flex items-center justify-between">
+              <span>Owner:</span>
+              <span className="font-mono bg-blue-100 px-2 py-0.5 rounded">
+                demo@owner.com / demo1234
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>Admin:</span>
+              <span className="font-mono bg-blue-100 px-2 py-0.5 rounded">
+                demo@admin.com / demo1234
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>Teacher:</span>
+              <span className="font-mono bg-blue-100 px-2 py-0.5 rounded">
+                demo@teacher.com / demo1234
+              </span>
             </div>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="mt-8 text-center text-sm text-gray-500">
+        <div className="text-center text-sm text-gray-500">
           <p>
             &copy; 2024 ClassPass. สงวนลิขสิทธิ์ | {' '}
             <Link to="/terms" className="hover:text-gray-700 transition-colors">

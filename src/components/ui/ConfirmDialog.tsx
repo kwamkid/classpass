@@ -62,7 +62,8 @@ const ConfirmDialog = ({
 
             <div className="p-6">
               {/* Icon */}
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full ${iconColors[type]} mb-4">
+              <div className={`mx-auto flex h-12 w-12 items-center justify-center rounded-full ${iconColors[type]} mb-4`}>
+
                 <AlertTriangle className="h-6 w-6" />
               </div>
 

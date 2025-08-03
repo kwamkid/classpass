@@ -13,9 +13,14 @@ const LandingPage = () => {
     <div className="min-h-screen bg-gradient-to-br from-orange-50 to-white">
       {/* Navigation */}
       <nav className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
+              <img 
+                src="/logo.svg" 
+                alt="ClassPass Logo"
+                className="w-8 h-8 mr-3"
+              />
               <h1 className="text-2xl font-bold text-primary-600">ClassPass</h1>
             </div>
             <div className="flex items-center space-x-4">

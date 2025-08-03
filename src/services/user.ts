@@ -17,7 +17,7 @@ import {
 import { 
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
-  updateProfile,
+  updateProfile as updateFirebaseProfile,
   deleteUser as deleteAuthUser,
   signOut,
   signInWithEmailAndPassword
@@ -56,6 +56,12 @@ export interface UpdateUserData {
   phone?: string
   role?: 'admin' | 'teacher'
   isActive?: boolean
+}
+
+export interface UpdateProfileData {
+  firstName?: string
+  lastName?: string
+  phone?: string
 }
 
 // Get all users for a school
@@ -139,7 +145,7 @@ export const createUser = async (
     console.log('Firebase Auth user created:', firebaseUser.uid)
     
     // 2. Update display name
-    await updateProfile(firebaseUser, {
+    await updateFirebaseProfile(firebaseUser, {
       displayName: `${data.firstName} ${data.lastName}`
     })
     
@@ -214,7 +220,7 @@ export const createUser = async (
   }
 }
 
-// Update user
+// Update user (for admin use)
 export const updateUser = async (
   userId: string,
   data: UpdateUserData
@@ -239,6 +245,35 @@ export const updateUser = async (
     await updateDoc(doc(db, 'users', userId), updateData)
   } catch (error) {
     console.error('Error updating user:', error)
+    throw error
+  }
+}
+
+// Update user profile (for own profile)
+export const updateUserProfile = async (
+  userId: string,
+  data: UpdateProfileData
+): Promise<void> => {
+  try {
+    const updateData: any = {
+      ...data,
+      updatedAt: serverTimestamp()
+    }
+    
+    // Update display name if name changed
+    if (data.firstName || data.lastName) {
+      const userDoc = await getDoc(doc(db, 'users', userId))
+      if (userDoc.exists()) {
+        const currentData = userDoc.data()
+        const firstName = data.firstName || currentData.firstName
+        const lastName = data.lastName || currentData.lastName
+        updateData.displayName = `${firstName} ${lastName}`
+      }
+    }
+    
+    await updateDoc(doc(db, 'users', userId), updateData)
+  } catch (error) {
+    console.error('Error updating profile:', error)
     throw error
   }
 }
