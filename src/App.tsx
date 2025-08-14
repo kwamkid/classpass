@@ -4,9 +4,9 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { useAuthStore } from './stores/authStore'
 import { useSchoolStore } from './stores/schoolStore'
+import { useAuthRefresh } from './hooks/useAuthRefresh'
 import { ProtectedRoute } from './components/common/ProtectedRoute'
 import { FontLoader } from './components/common/FontLoader'
-
 
 // Lazy load pages
 const LandingPage = lazy(() => import('./pages/public/LandingPage'))
@@ -28,6 +28,7 @@ const EditStudentPage = lazy(() => import('./pages/students/EditStudentPage'))
 const StudentDetailPage = lazy(() => import('./pages/students/StudentDetailPage'))
 const CoursesPage = lazy(() => import('./pages/courses/CoursesPage'))
 const AddCoursePage = lazy(() => import('./pages/courses/AddCoursePage'))
+const EditCoursePage = lazy(() => import('./pages/courses/EditCoursePage'))
 const CourseDetailPage = lazy(() => import('./pages/courses/CourseDetailPage'))
 const PackagesPage = lazy(() => import('./pages/packages/PackagesPage'))
 const AddPackagePage = lazy(() => import('./pages/packages/AddPackagePage'))
@@ -43,7 +44,6 @@ const EditUserPage = lazy(() => import('./pages/users/EditUserPage'))
 const EditProfilePage = lazy(() => import('./pages/profile/EditProfilePage'))
 const ChangePasswordPage = lazy(() => import('./pages/profile/ChangePasswordPage'))
 
-
 // Loading component
 const PageLoader = () => (
   <div className="min-h-screen flex items-center justify-center">
@@ -57,6 +57,9 @@ const PageLoader = () => (
 function App() {
   const { checkAuth, user, isLoading } = useAuthStore()
   const { loadSchool } = useSchoolStore()
+  
+  // เพิ่ม auth refresh hook
+  useAuthRefresh()
   
   // Check authentication status on app load
   useEffect(() => {
@@ -85,8 +88,8 @@ function App() {
     return <PageLoader />
   }
   
-return (
-  <FontLoader>
+  return (
+    <FontLoader>
       {/* Toast notifications */}
       <Toaster 
         position="top-right"
@@ -177,6 +180,12 @@ return (
           <Route path="/courses/:id" element={
             <ProtectedRoute>
               <CourseDetailPage />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/courses/:id/edit" element={
+            <ProtectedRoute>
+              <EditCoursePage />
             </ProtectedRoute>
           } />
           
@@ -275,7 +284,7 @@ return (
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
-        </FontLoader>
+    </FontLoader>
   )
 }
 

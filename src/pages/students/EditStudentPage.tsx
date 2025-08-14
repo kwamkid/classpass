@@ -227,54 +227,73 @@ const EditStudentPage = () => {
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  e.preventDefault()
+  
+  if (!validateForm()) {
+    toast.error('กรุณากรอกข้อมูลให้ครบถ้วน')
+    return
+  }
+  
+  if (!student || !id) {
+    toast.error('ไม่พบข้อมูลนักเรียน')
+    return
+  }
+  
+  try {
+    setSaving(true)
     
-    if (!validateForm()) {
-      toast.error('กรุณากรอกข้อมูลให้ครบถ้วน')
-      return
+    // สร้าง update data object ที่สะอาด
+    const updateData: any = {
+      firstName: formData.firstName.trim(),
+      lastName: formData.lastName.trim(),
+      nickname: formData.nickname.trim() || '',
+      birthDate: formData.birthDate || '',
+      gender: formData.gender,
+      currentGrade: formData.currentGrade,
+      phone: formData.phone.trim() || '',
+      email: formData.email.trim() || '',
+      status: formData.status
     }
     
-    if (!student || !id) {
-      toast.error('ไม่พบข้อมูลนักเรียน')
-      return
+    // Handle address - ตรวจสอบว่ามีข้อมูลหรือไม่
+    if (formData.address) {
+      updateData.address = {
+        houseNumber: formData.address.houseNumber || '',
+        street: formData.address.street || '',
+        subdistrict: formData.address.subdistrict || '',
+        district: formData.address.district || '',
+        province: formData.address.province || '',
+        postalCode: formData.address.postalCode || ''
+      }
     }
     
-    try {
-      setSaving(true)
-      
-      // Convert form parents to service parents format
-      const parentsData: studentService.Parent[] = formData.parents.map(parent => ({
+    // Handle parents - แปลงให้เป็น format ที่ถูกต้อง
+    if (formData.parents && formData.parents.length > 0) {
+      updateData.parents = formData.parents.map(parent => ({
         type: parent.type,
-        firstName: parent.firstName,
-        lastName: parent.lastName,
-        phone: parent.phone,
-        email: parent.email || undefined,
+        firstName: parent.firstName || '',
+        lastName: parent.lastName || '',
+        phone: parent.phone || '',
+        email: parent.email || '',
         isPrimaryContact: parent.isPrimaryContact || false
       }))
-      
-      await studentService.updateStudent(id, {
-        firstName: formData.firstName.trim(),
-        lastName: formData.lastName.trim(),
-        nickname: formData.nickname.trim(),
-        birthDate: formData.birthDate,
-        gender: formData.gender,
-        currentGrade: formData.currentGrade,
-        phone: formData.phone.trim(),
-        email: formData.email.trim(),
-        status: formData.status,
-        address: formData.address,
-        parents: parentsData
-      })
-      
-      toast.success('บันทึกข้อมูลสำเร็จ!')
-      navigate(`/students/${id}`)
-    } catch (error) {
-      console.error('Error updating student:', error)
-      toast.error('เกิดข้อผิดพลาดในการบันทึกข้อมูล')
-    } finally {
-      setSaving(false)
+    } else {
+      updateData.parents = []
     }
+    
+    console.log('Submitting update data:', updateData)
+    
+    await studentService.updateStudent(id, updateData)
+    
+    toast.success('บันทึกข้อมูลสำเร็จ!')
+    navigate(`/students/${id}`)
+  } catch (error) {
+    console.error('Error updating student:', error)
+    toast.error('เกิดข้อผิดพลาดในการบันทึกข้อมูล')
+  } finally {
+    setSaving(false)
   }
+}
 
   if (loading) {
     return (

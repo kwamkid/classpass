@@ -48,6 +48,7 @@ export interface User {
   isSuperAdmin?: boolean
   createdAt?: any
   updatedAt?: any
+  lastLogin?: any
 }
 
 // Get user data from Firestore
@@ -67,6 +68,27 @@ export const getUserData = async (uid: string): Promise<User | null> => {
   }
 }
 
+// Get user profile (same as getUserData but with date conversion)
+export const getUserProfile = async (userId: string): Promise<User | null> => {
+  try {
+    const userDoc = await getDoc(doc(db, 'users', userId))
+    if (userDoc.exists()) {
+      const data = userDoc.data()
+      return {
+        id: userDoc.id,
+        ...data,
+        createdAt: data.createdAt?.toDate() || new Date(),
+        updatedAt: data.updatedAt?.toDate() || new Date(),
+        lastLogin: data.lastLogin?.toDate() || undefined
+      } as User
+    }
+    return null
+  } catch (error) {
+    console.error('Error getting user profile:', error)
+    return null
+  }
+}
+
 // Wait for auth to be ready
 const waitForAuth = (): Promise<FirebaseUser | null> => {
   return new Promise((resolve) => {
@@ -78,7 +100,7 @@ const waitForAuth = (): Promise<FirebaseUser | null> => {
 }
 
 // Login with email and password
-export const login = async ({ email, password }: LoginCredentials): Promise<User> => {
+export const login = async ({ email, password }: LoginCredentials): Promise<{ user: User }> => {
   console.log('🔐 Attempting login for:', email)
   
   try {
@@ -106,7 +128,7 @@ export const login = async ({ email, password }: LoginCredentials): Promise<User
       lastLogin: serverTimestamp()
     })
     
-    return userData
+    return { user: userData }
   } catch (error: any) {
     console.error('❌ Login error:', error)
     
@@ -176,6 +198,24 @@ export const subscribeToAuthState = (callback: (user: User | null) => void) => {
 export const isAuthenticated = async (): Promise<boolean> => {
   const user = await waitForAuth()
   return !!user
+}
+
+// Refresh token
+export const refreshToken = async (): Promise<string | null> => {
+  try {
+    const currentUser = auth.currentUser
+    if (!currentUser) {
+      console.log('No current user for token refresh')
+      return null
+    }
+    
+    // Force token refresh
+    const token = await currentUser.getIdToken(true)
+    return token
+  } catch (error) {
+    console.error('Error refreshing token:', error)
+    return null
+  }
 }
 
 // Register new school and owner

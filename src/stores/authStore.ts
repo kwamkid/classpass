@@ -34,6 +34,7 @@ interface AuthState {
   checkAuth: () => Promise<void>
   clearError: () => void
   setUser: (user: User | null) => void
+  setLoading: (loading: boolean) => void
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -48,7 +49,7 @@ export const useAuthStore = create<AuthState>()(
         console.log('🔐 Login attempt with:', email)
         set({ isLoading: true, error: null })
         try {
-          const user = await authService.login({ email, password })
+          const { user } = await authService.login({ email, password })
           console.log('✅ Login successful:', user)
           set({ 
             user: user as User, 
@@ -145,6 +146,10 @@ export const useAuthStore = create<AuthState>()(
           isAuthenticated: !!user,
           error: null
         })
+      },
+      
+      setLoading: (loading: boolean) => {
+        set({ isLoading: loading })
       }
     }),
     {
