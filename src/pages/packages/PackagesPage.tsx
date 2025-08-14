@@ -109,12 +109,9 @@ const PackagesPage = () => {
     if (!editModal.package) return
     
     try {
-      // Find course name for denormalization
-      const selectedCourse = courses.find(c => c.id === editForm.courseId)
-      
+      // Don't need to pass courseName anymore
       const updateData = {
-        ...editForm,
-        courseName: selectedCourse?.name || ''
+        ...editForm
       }
       
       await packageService.updatePackage(editModal.package.id, updateData)
@@ -126,10 +123,10 @@ const PackagesPage = () => {
     }
   }
 
-  // Helper function to get course name
+  // Helper function to get course name from courseId
   const getCourseName = (courseId: string) => {
     const course = courses.find(c => c.id === courseId)
-    return course?.name || 'ไม่ระบุวิชา'
+    return course?.name || 'ไม่พบวิชา'
   }
 
   const formatPrice = (price: number) => {
@@ -140,18 +137,19 @@ const PackagesPage = () => {
   const filteredPackages = packages.filter(pkg => {
     if (!searchTerm) return true
     const search = searchTerm.toLowerCase()
+    const courseName = getCourseName(pkg.courseId)
+    
     return (
       pkg.name.toLowerCase().includes(search) ||
       pkg.description?.toLowerCase().includes(search) ||
-      pkg.courseName?.toLowerCase().includes(search) ||
-      getCourseName(pkg.courseId).toLowerCase().includes(search)
+      courseName.toLowerCase().includes(search)
     )
   })
 
   // Group packages by course
   const groupedPackages = filteredPackages.reduce((groups, pkg) => {
     const courseId = pkg.courseId
-    const courseName = pkg.courseName || getCourseName(courseId)
+    const courseName = getCourseName(courseId)
     
     if (!groups[courseId]) {
       groups[courseId] = {
