@@ -134,12 +134,7 @@ const AttendancePage = () => {
       const checkedInStudentIds = new Set(attendances.map(a => a.studentId))
       const studentsWithCredits = students.filter(student => {
         const credits = studentCredits.get(student.id) || []
-        const courseCredits = credits.filter(c => 
-          c.status === 'active' && 
-          c.remainingCredits > 0 &&
-          c.courseId === selectedCourse.id
-        )
-        return courseCredits.length > 0
+        return credits.length > 0
       })
       
       setStats({
@@ -158,40 +153,20 @@ const AttendancePage = () => {
     try {
       const creditsMap = new Map<string, studentCreditService.StudentCredit[]>()
       
-      // Single optimized query using index
-      const creditsRef = collection(db, 'student_credits')
-      const creditsQuery = query(
-        creditsRef,
-        where('schoolId', '==', user.schoolId),
-        where('courseId', '==', selectedCourse.id),
-        where('status', '==', 'active')
-      )
-      
-      const snapshot = await getDocs(creditsQuery)
-      
-      // Create Set for O(1) lookup performance
-      const studentIdSet = new Set(students.map(s => s.id))
-      
-      // Process all credits in one pass
-      snapshot.docs.forEach(doc => {
-        const data = doc.data()
+      // Use centralized function for each student
+      for (const student of students) {
+        const credits = await studentCreditService.getStudentCreditsForCourse(
+          student.id,
+          selectedCourse.id,
+          user.schoolId
+        )
         
-        // Only process if student is in current page and has remaining credits
-        if (studentIdSet.has(data.studentId) && data.remainingCredits > 0) {
-          const credit: studentCreditService.StudentCredit = {
-            id: doc.id,
-            ...data,
-            createdAt: data.createdAt?.toDate() || new Date(),
-            updatedAt: data.updatedAt?.toDate() || new Date()
-          } as studentCreditService.StudentCredit
-          
-          // Group credits by studentId
-          const existingCredits = creditsMap.get(data.studentId) || []
-          existingCredits.push(credit)
-          creditsMap.set(data.studentId, existingCredits)
+        if (credits.length > 0) {
+          creditsMap.set(student.id, credits)
         }
-      })
+      }
       
+      console.log(`Loaded credits for ${creditsMap.size} students`)
       setStudentCredits(creditsMap)
     } catch (error) {
       console.error('Error loading student credits:', error)
@@ -238,12 +213,7 @@ const AttendancePage = () => {
     if (selectedCourse) {
       filtered = filtered.filter(student => {
         const credits = studentCredits.get(student.id) || []
-        const courseCredits = credits.filter(c => 
-          c.status === 'active' && 
-          c.remainingCredits > 0 &&
-          c.courseId === selectedCourse.id
-        )
-        return courseCredits.length > 0
+        return credits.length > 0
       })
     }
     
@@ -278,11 +248,7 @@ const AttendancePage = () => {
       const credits = studentCredits.get(student.id) || []
       
       // Find active credit with remaining balance
-      const activeCredit = credits.find(c => 
-        c.status === 'active' && 
-        c.remainingCredits > 0 &&
-        c.courseId === selectedCourse.id
-      )
+      const activeCredit = credits.find(c => c.remainingCredits > 0)
       
       if (!activeCredit) {
         toast.error('ไม่มีเครดิตสำหรับวิชานี้')
@@ -329,11 +295,7 @@ const AttendancePage = () => {
 
   const getStudentCredit = (studentId: string): number => {
     const credits = studentCredits.get(studentId) || []
-    const totalRemaining = credits
-      .filter(c => c.status === 'active' && c.courseId === selectedCourse?.id)
-      .reduce((sum, c) => sum + c.remainingCredits, 0)
-    
-    return totalRemaining
+    return credits.reduce((sum, c) => sum + c.remainingCredits, 0)
   }
 
   const handleCancelAttendance = async (attendance: attendanceService.Attendance) => {

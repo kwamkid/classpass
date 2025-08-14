@@ -75,6 +75,14 @@ export interface PurchaseCreditsData {
   paymentReference?: string
 }
 
+// Interface for credit summary by package
+export interface CreditPackageSummary {
+  courseName: string
+  packageName: string
+  remainingCredits: number
+  expiryDate?: string
+}
+
 // Generate receipt number
 const generateReceiptNumber = (): string => {
   const year = new Date().getFullYear()
@@ -100,6 +108,13 @@ const calculateExpiryDate = (
   }
   
   return expiryDate
+}
+
+// Calculate days until expiry
+const calculateDaysUntilExpiry = (expiryDate: string): number => {
+  const today = new Date()
+  const expiry = new Date(expiryDate)
+  return Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
 }
 
 // Purchase credits for student
@@ -234,87 +249,190 @@ export const purchaseCredits = async (
   }
 }
 
+// ====================================
+// CENTRALIZED CREDIT FETCHING FUNCTIONS
+// ====================================
+
+/**
+ * Get active credits for a specific student and course
+ * Used in: Attendance page for checking available credits for check-in
+ */
+export const getStudentCreditsForCourse = async (
+  studentId: string,
+  courseId: string,
+  schoolId?: string
+): Promise<StudentCredit[]> => {
+  try {
+    console.log('Getting credits for course:', { studentId, courseId, schoolId })
+    
+    const creditsRef = collection(db, 'student_credits')
+    let conditions = [
+      where('studentId', '==', studentId),
+      where('courseId', '==', courseId),
+      where('status', '==', 'active')
+    ]
+    
+    // Add schoolId if provided
+    if (schoolId) {
+      conditions.push(where('schoolId', '==', schoolId))
+    }
+    
+    const q = query(creditsRef, ...conditions)
+    
+    const snapshot = await getDocs(q)
+    console.log(`Found ${snapshot.size} credits for course ${courseId}`)
+    
+    const credits: StudentCredit[] = []
+    snapshot.docs.forEach(doc => {
+      const data = doc.data() as any
+      
+      // Only include if has remaining credits
+      if (data.remainingCredits > 0) {
+        let daysUntilExpiry = null
+        if (data.hasExpiry && data.expiryDate) {
+          daysUntilExpiry = calculateDaysUntilExpiry(data.expiryDate)
+        }
+        
+        credits.push({
+          id: doc.id,
+          ...data,
+          daysUntilExpiry,
+          createdAt: data.createdAt?.toDate() || new Date(),
+          updatedAt: data.updatedAt?.toDate() || new Date()
+        })
+      }
+    })
+    
+    // Sort by purchase date desc
+    credits.sort((a, b) => 
+      new Date(b.purchaseDate).getTime() - new Date(a.purchaseDate).getTime()
+    )
+    
+    console.log(`Returning ${credits.length} active credits with remaining balance`)
+    return credits
+  } catch (error) {
+    console.error('Error getting student credits for course:', error)
+    return []
+  }
+}
+
+/**
+ * Get all active credits for a student across all courses
+ * Used in: Students list page and Student detail page
+ */
+export const getStudentAllActiveCredits = async (
+  studentId: string,
+  schoolId?: string
+): Promise<StudentCredit[]> => {
+  try {
+    console.log('Getting all active credits for student:', studentId, 'schoolId:', schoolId)
+    
+    const creditsRef = collection(db, 'student_credits')
+    let conditions = [
+      where('studentId', '==', studentId),
+      where('status', '==', 'active')
+    ]
+    
+    // Add schoolId if provided
+    if (schoolId) {
+      conditions.push(where('schoolId', '==', schoolId))
+    }
+    
+    const q = query(creditsRef, ...conditions)
+    
+    const snapshot = await getDocs(q)
+    console.log(`Found ${snapshot.size} total credits for student`)
+    
+    const credits: StudentCredit[] = []
+    snapshot.docs.forEach(doc => {
+      const data = doc.data() as any
+      
+      // Only include if has remaining credits
+      if (data.remainingCredits > 0) {
+        let daysUntilExpiry = null
+        if (data.hasExpiry && data.expiryDate) {
+          daysUntilExpiry = calculateDaysUntilExpiry(data.expiryDate)
+        }
+        
+        credits.push({
+          id: doc.id,
+          ...data,
+          daysUntilExpiry,
+          createdAt: data.createdAt?.toDate() || new Date(),
+          updatedAt: data.updatedAt?.toDate() || new Date()
+        })
+      }
+    })
+    
+    // Sort by course name, then by purchase date
+    credits.sort((a, b) => {
+      if (a.courseName !== b.courseName) {
+        return a.courseName.localeCompare(b.courseName)
+      }
+      return new Date(b.purchaseDate).getTime() - new Date(a.purchaseDate).getTime()
+    })
+    
+    console.log(`Returning ${credits.length} active credits with remaining balance`)
+    return credits
+  } catch (error) {
+    console.error('Error getting all student active credits:', error)
+    return []
+  }
+}
+
+/**
+ * Get total remaining credits for a student (sum of all courses)
+ * Used in: Students list page for quick display
+ */
+export const getStudentTotalCredits = async (
+  studentId: string,
+  schoolId?: string
+): Promise<number> => {
+  try {
+    const credits = await getStudentAllActiveCredits(studentId, schoolId)
+    return credits.reduce((sum, credit) => sum + credit.remainingCredits, 0)
+  } catch (error) {
+    console.error('Error getting student total credits:', error)
+    return 0
+  }
+}
+
+/**
+ * Get credit summary grouped by package
+ * Used in: Students list page tooltip
+ */
+export const getStudentCreditsSummary = async (
+  studentId: string,
+  schoolId?: string
+): Promise<CreditPackageSummary[]> => {
+  try {
+    const credits = await getStudentAllActiveCredits(studentId, schoolId)
+    
+    return credits.map(credit => ({
+      courseName: credit.courseName,
+      packageName: credit.packageName,
+      remainingCredits: credit.remainingCredits,
+      expiryDate: credit.expiryDate
+    }))
+  } catch (error) {
+    console.error('Error getting student credits summary:', error)
+    return []
+  }
+}
+
+// ====================================
+// LEGACY FUNCTIONS (kept for backward compatibility)
+// ====================================
+
 // Get all credits for a student (simplified version)
 export const getStudentCredits = async (
   studentId: string,
   courseId?: string
 ): Promise<StudentCredit[]> => {
-  try {
-    console.log('Getting student credits for:', { studentId, courseId })
-    
-    const creditsRef = collection(db, 'student_credits')
-    
-    // Simple query without orderBy to avoid index requirement
-    const q = query(
-      creditsRef,
-      where('studentId', '==', studentId)
-    )
-    
-    const snapshot = await getDocs(q)
-    console.log('Raw query - Found credits:', snapshot.size)
-    
-    const allCredits: StudentCredit[] = []
-    snapshot.docs.forEach((doc, index) => {
-      const data = doc.data() as any
-      console.log(`Credit ${index + 1} raw data:`, {
-        id: doc.id,
-        studentId: data.studentId,
-        courseId: data.courseId,
-        status: data.status,
-        remainingCredits: data.remainingCredits,
-        courseName: data.courseName
-      })
-      
-      // Calculate days until expiry
-      let daysUntilExpiry = null
-      if (data.hasExpiry && data.expiryDate) {
-        const today = new Date()
-        const expiry = new Date(data.expiryDate)
-        daysUntilExpiry = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-      }
-      
-      allCredits.push({
-        id: doc.id,
-        ...data,
-        daysUntilExpiry,
-        createdAt: data.createdAt?.toDate() || new Date(),
-        updatedAt: data.updatedAt?.toDate() || new Date()
-      })
-    })
-    
-    console.log('All credits before filtering:', allCredits.length, allCredits)
-    
-    // Filter by courseId if provided
-    let filteredCredits = allCredits
-    if (courseId) {
-      console.log(`Filtering by courseId: ${courseId}`)
-      filteredCredits = allCredits.filter(c => {
-        console.log(`Comparing: ${c.courseId} === ${courseId} ?`, c.courseId === courseId)
-        return c.courseId === courseId
-      })
-      console.log(`Filtered by courseId ${courseId}:`, filteredCredits.length)
-    }
-    
-    // Filter only active credits with remaining balance
-    console.log('Before active filter:', filteredCredits)
-    const activeCredits = filteredCredits.filter(c => {
-      console.log(`Checking credit: status=${c.status}, remaining=${c.remainingCredits}`)
-      return c.status === 'active' && c.remainingCredits > 0
-    })
-    
-    console.log('Final active credits:', activeCredits.length)
-    console.log('Active credits details:', activeCredits)
-    
-    // Sort by purchaseDate desc on client side
-    activeCredits.sort((a, b) => 
-      new Date(b.purchaseDate).getTime() - new Date(a.purchaseDate).getTime()
-    )
-    
-    return activeCredits
-  } catch (error) {
-    console.error('Error getting student credits:', error)
-    return []
+  if (courseId) {
+    return getStudentCreditsForCourse(studentId, courseId)
   }
+  return getStudentAllActiveCredits(studentId)
 }
 
 // Get all student credits (without filtering) - for debugging
@@ -360,73 +478,11 @@ export const getAllStudentCreditsDebug = async (
   }
 }
 
+// Legacy function - redirects to new centralized function
 export const getStudentAllCoursesCredits = async (
   studentId: string
 ): Promise<StudentCredit[]> => {
-  try {
-    console.log('\n=== getStudentAllCoursesCredits ===')
-    console.log('Searching for studentId:', studentId)
-    
-    const creditsRef = collection(db, 'student_credits')
-    const q = query(
-      creditsRef,
-      where('studentId', '==', studentId)
-    )
-    
-    console.log('Executing query...')
-    const snapshot = await getDocs(q)
-    console.log('Query completed. Documents found:', snapshot.size)
-    
-    const credits: StudentCredit[] = []
-    
-    if (snapshot.empty) {
-      console.log('No credits found for this student')
-      return credits
-    }
-    
-    snapshot.docs.forEach((doc, index) => {
-      const data = doc.data() as any
-      console.log(`\nDocument ${index + 1}:`, {
-        id: doc.id,
-        studentId: data.studentId,
-        studentIdMatch: data.studentId === studentId,
-        status: data.status,
-        remainingCredits: data.remainingCredits,
-        courseName: data.courseName,
-        packageName: data.packageName
-      })
-      
-      // Calculate days until expiry
-      let daysUntilExpiry = null
-      if (data.hasExpiry && data.expiryDate) {
-        const today = new Date()
-        const expiry = new Date(data.expiryDate)
-        daysUntilExpiry = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-      }
-      
-      // Check if should include
-      const shouldInclude = data.status === 'active' && data.remainingCredits > 0
-      console.log(`Should include: ${shouldInclude}`)
-      
-      if (shouldInclude) {
-        credits.push({
-          id: doc.id,
-          ...data,
-          daysUntilExpiry,
-          createdAt: data.createdAt?.toDate() || new Date(),
-          updatedAt: data.updatedAt?.toDate() || new Date()
-        })
-      }
-    })
-    
-    console.log('Final active credits:', credits.length)
-    return credits
-  } catch (error) {
-    console.error('Error in getStudentAllCoursesCredits - Full error:', error)
-    console.error('Error message:', error instanceof Error ? error.message : 'Unknown error')
-    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace')
-    return []
-  }
+  return getStudentAllActiveCredits(studentId)
 }
 
 // Use credits (for attendance)
