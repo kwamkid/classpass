@@ -360,26 +360,41 @@ export const getAllStudentCreditsDebug = async (
   }
 }
 
-// Get credits for all courses of a student
 export const getStudentAllCoursesCredits = async (
   studentId: string
 ): Promise<StudentCredit[]> => {
   try {
-    console.log('Getting all courses credits for student:', studentId)
+    console.log('\n=== getStudentAllCoursesCredits ===')
+    console.log('Searching for studentId:', studentId)
     
     const creditsRef = collection(db, 'student_credits')
     const q = query(
       creditsRef,
-      where('studentId', '==', studentId),
-      where('status', '==', 'active')
+      where('studentId', '==', studentId)
     )
     
+    console.log('Executing query...')
     const snapshot = await getDocs(q)
-    console.log('Found active credits:', snapshot.size)
+    console.log('Query completed. Documents found:', snapshot.size)
     
     const credits: StudentCredit[] = []
-    snapshot.docs.forEach(doc => {
+    
+    if (snapshot.empty) {
+      console.log('No credits found for this student')
+      return credits
+    }
+    
+    snapshot.docs.forEach((doc, index) => {
       const data = doc.data() as any
+      console.log(`\nDocument ${index + 1}:`, {
+        id: doc.id,
+        studentId: data.studentId,
+        studentIdMatch: data.studentId === studentId,
+        status: data.status,
+        remainingCredits: data.remainingCredits,
+        courseName: data.courseName,
+        packageName: data.packageName
+      })
       
       // Calculate days until expiry
       let daysUntilExpiry = null
@@ -389,7 +404,11 @@ export const getStudentAllCoursesCredits = async (
         daysUntilExpiry = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
       }
       
-      if (data.remainingCredits > 0) {
+      // Check if should include
+      const shouldInclude = data.status === 'active' && data.remainingCredits > 0
+      console.log(`Should include: ${shouldInclude}`)
+      
+      if (shouldInclude) {
         credits.push({
           id: doc.id,
           ...data,
@@ -400,65 +419,12 @@ export const getStudentAllCoursesCredits = async (
       }
     })
     
+    console.log('Final active credits:', credits.length)
     return credits
   } catch (error) {
-    console.error('Error getting student all courses credits:', error)
-    return []
-  }
-}
-
-// Get all credits for a school (for reporting)
-export const getSchoolCredits = async (
-  schoolId: string,
-  filters?: {
-    startDate?: string
-    endDate?: string
-    courseId?: string
-    status?: string
-  }
-): Promise<StudentCredit[]> => {
-  try {
-    const creditsRef = collection(db, 'student_credits')
-    let conditions = [where('schoolId', '==', schoolId)]
-    
-    if (filters?.courseId) {
-      conditions.push(where('courseId', '==', filters.courseId))
-    }
-    
-    if (filters?.status) {
-      conditions.push(where('status', '==', filters.status))
-    }
-    
-    const q = query(
-      creditsRef,
-      ...conditions,
-      orderBy('purchaseDate', 'desc')
-    )
-    
-    const snapshot = await getDocs(q)
-    
-    let credits: StudentCredit[] = []
-    snapshot.docs.forEach(doc => {
-      const data = doc.data() as any
-      credits.push({
-        id: doc.id,
-        ...data,
-        createdAt: data.createdAt?.toDate() || new Date(),
-        updatedAt: data.updatedAt?.toDate() || new Date()
-      })
-    })
-    
-    // Filter by date on client side
-    if (filters?.startDate) {
-      credits = credits.filter(c => c.purchaseDate >= filters.startDate!)
-    }
-    if (filters?.endDate) {
-      credits = credits.filter(c => c.purchaseDate <= filters.endDate!)
-    }
-    
-    return credits
-  } catch (error) {
-    console.error('Error getting school credits:', error)
+    console.error('Error in getStudentAllCoursesCredits - Full error:', error)
+    console.error('Error message:', error instanceof Error ? error.message : 'Unknown error')
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace')
     return []
   }
 }

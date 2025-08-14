@@ -15,23 +15,35 @@ import {
 } from 'lucide-react'
 import * as courseService from '../../services/course'
 import * as studentService from '../../services/student'
+import { useAuthStore } from '../../stores/authStore'
+import * as creditService from '../../services/studentCredit'
+import * as attendanceService from '../../services/attendance'
 import Layout from '../../components/layout/Layout'
 import toast from 'react-hot-toast'
 
 const CourseDetailPage = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+    const { user } = useAuthStore() // <-- เพิ่มบรรทัดนี้
+
   const [course, setCourse] = useState<courseService.Course | null>(null)
   const [enrolledStudents, setEnrolledStudents] = useState<studentService.Student[]>([])
   const [loading, setLoading] = useState(true)
   const [menuOpen, setMenuOpen] = useState(false)
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [stats, setStats] = useState({
+  totalStudents: 0,
+  totalClasses: 0,
+  totalCreditsUsed: 0
+})
 
   useEffect(() => {
     if (id) {
       loadCourse()
       loadEnrolledStudents()
+      loadCourseStats() // เพิ่มบรรทัดนี้
+
     }
   }, [id])
 
@@ -55,9 +67,104 @@ const CourseDetailPage = () => {
   }
 
   const loadEnrolledStudents = async () => {
-    // TODO: Load enrolled students when we have enrollment system
-    // For now, just show empty list
-    setEnrolledStudents([])
+    if (!id || !user?.schoolId) return
+    
+    try {
+      console.log('Loading enrolled students for course:', id)
+      
+      // Get all active credits for this course
+      const courseCredits = await creditService.getSchoolCredits(
+        user.schoolId,
+        { 
+          courseId: id, 
+          status: 'active' 
+        }
+      )
+      
+      console.log('Found credits:', courseCredits.length)
+      
+      // Filter only credits with remaining balance
+      const activeCredits = courseCredits.filter(credit => credit.remainingCredits > 0)
+      
+      console.log('Active credits with balance:', activeCredits.length)
+      
+      // Get unique student IDs
+      const uniqueStudentIds = [...new Set(activeCredits.map(credit => credit.studentId))]
+      
+      console.log('Unique student IDs:', uniqueStudentIds)
+      
+      // Load student details
+      const studentsData = await Promise.all(
+        uniqueStudentIds.map(async (studentId) => {
+          try {
+            const student = await studentService.getStudent(studentId)
+            return student
+          } catch (error) {
+            console.error(`Error loading student ${studentId}:`, error)
+            return null
+          }
+        })
+      )
+      
+      // Filter out null values and set
+      const validStudents = studentsData.filter(s => s !== null) as studentService.Student[]
+      
+      console.log('Valid students loaded:', validStudents.length)
+      setEnrolledStudents(validStudents)
+      
+      // Update total enrolled count on course
+      if (course && validStudents.length !== course.totalEnrolled) {
+        setCourse({
+          ...course,
+          totalEnrolled: validStudents.length
+        })
+      }
+    } catch (error) {
+      console.error('Error loading enrolled students:', error)
+      setEnrolledStudents([])
+    }
+  }
+
+  const loadCourseStats = async () => {
+    if (!id || !user?.schoolId) return
+    
+    try {
+      console.log('Loading course stats...')
+      
+      // Get all credits for this course (including used ones)
+      const allCourseCredits = await creditService.getSchoolCredits(
+        user.schoolId,
+        { courseId: id }
+      )
+      
+      // Calculate total students (unique)
+      const uniqueStudentIds = [...new Set(allCourseCredits.map(credit => credit.studentId))]
+      const totalStudents = uniqueStudentIds.length
+      
+      // Calculate total credits used
+      const totalCreditsUsed = allCourseCredits.reduce((sum, credit) => sum + credit.usedCredits, 0)
+      
+      // Get attendance records for total classes
+      const attendanceRecords = await attendanceService.getAttendanceHistory(
+        user.schoolId,
+        { courseId: id }
+      )
+      const totalClasses = attendanceRecords.length
+      
+      setStats({
+        totalStudents,
+        totalClasses,
+        totalCreditsUsed
+      })
+      
+      console.log('Course stats:', {
+        totalStudents,
+        totalClasses,
+        totalCreditsUsed
+      })
+    } catch (error) {
+      console.error('Error loading course stats:', error)
+    }
   }
 
   const handleStatusChange = async (newStatus: string) => {
@@ -278,7 +385,7 @@ const CourseDetailPage = () => {
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-lg font-medium text-gray-900 flex items-center">
                   <Users className="w-5 h-5 mr-2 text-gray-500" />
-                  นักเรียนที่ลงทะเบียน ({enrolledStudents.length})
+นักเรียนที่มีเครดิต ({enrolledStudents.length})
                 </h2>
                 <Link
                   to={`/courses/${course.id}/enroll`}
@@ -343,7 +450,7 @@ const CourseDetailPage = () => {
                     <span className="text-sm text-gray-500">นักเรียนทั้งหมด</span>
                   </div>
                   <span className="text-lg font-semibold text-primary-600">
-                    {course.totalEnrolled}
+                    {stats.totalStudents}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
@@ -351,14 +458,31 @@ const CourseDetailPage = () => {
                     <Calendar className="w-5 h-5 text-gray-400 mr-2" />
                     <span className="text-sm text-gray-500">คลาสที่สอนแล้ว</span>
                   </div>
-                  <span className="text-lg font-semibold text-green-600">0</span>
+                  <span className="text-lg font-semibold text-green-600">
+                    {stats.totalClasses}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
                     <CreditCard className="w-5 h-5 text-gray-400 mr-2" />
                     <span className="text-sm text-gray-500">เครดิตที่ใช้ไป</span>
                   </div>
-                  <span className="text-lg font-semibold text-blue-600">0</span>
+                  <span className="text-lg font-semibold text-blue-600">
+                    {stats.totalCreditsUsed}
+                  </span>
+                </div>
+                
+                {/* เพิ่มส่วนนักเรียนที่มีเครดิตคงเหลือ */}
+                <div className="pt-3 border-t">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <Users className="w-5 h-5 text-gray-400 mr-2" />
+                      <span className="text-sm text-gray-500">นักเรียนที่มีเครดิต</span>
+                    </div>
+                    <span className="text-lg font-semibold text-orange-600">
+                      {enrolledStudents.length}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>

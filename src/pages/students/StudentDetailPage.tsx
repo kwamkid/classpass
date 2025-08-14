@@ -81,40 +81,62 @@ const StudentDetailPage = () => {
   }
 
   const loadAdditionalData = async () => {
-    if (!id || !user?.schoolId) return
+  if (!id || !user?.schoolId) return
+  
+  try {
+    setLoadingCredits(true)
     
-    try {
-      setLoadingCredits(true)
-      
-      // Load credits
-      const credits = await creditService.getStudentAllCoursesCredits(id)
-      setCreditDetails(credits.map(credit => ({
+    // เพิ่ม log
+    console.log('=== Loading Student Detail Data ===')
+    console.log('Student ID:', id)
+    console.log('School ID:', user.schoolId)
+    
+    // Load credits
+    const credits = await creditService.getStudentAllCoursesCredits(id)
+    console.log('Credits found:', credits.length)
+    console.log('Credits data:', credits)
+    
+    // ตรวจสอบข้อมูลแต่ละ credit
+    credits.forEach((credit, index) => {
+      console.log(`Credit ${index + 1}:`, {
         id: credit.id,
         courseName: credit.courseName,
         packageName: credit.packageName,
-        totalCredits: credit.totalCredits,
-        usedCredits: credit.usedCredits,
         remainingCredits: credit.remainingCredits,
-        purchaseDate: credit.purchaseDate,
-        expiryDate: credit.expiryDate,
-        daysUntilExpiry: credit.daysUntilExpiry,
         status: credit.status
-      })))
-      
-      // Load attendance
-      const attendanceHistory = await attendanceService.getAttendanceHistory(
-        user.schoolId,
-        { studentId: id }
-      )
-      setTotalAttendances(attendanceHistory.length)
-      setLastAttendance(attendanceHistory[0]?.checkInDate || null)
-      
-    } catch (error) {
-      console.error('Error loading additional data:', error)
-    } finally {
-      setLoadingCredits(false)
-    }
+      })
+    })
+    
+    setCreditDetails(credits.map(credit => ({
+      id: credit.id,
+      courseName: credit.courseName,
+      packageName: credit.packageName,
+      totalCredits: credit.totalCredits,
+      usedCredits: credit.usedCredits,
+      remainingCredits: credit.remainingCredits,
+      purchaseDate: credit.purchaseDate,
+      expiryDate: credit.expiryDate,
+      daysUntilExpiry: credit.daysUntilExpiry,
+      status: credit.status
+    })))
+    
+    // Load attendance
+    console.log('Loading attendance for student:', id)
+    const attendanceHistory = await attendanceService.getAttendanceHistory(
+      user.schoolId,
+      { studentId: id }
+    )
+    console.log('Attendance records found:', attendanceHistory.length)
+    
+    setTotalAttendances(attendanceHistory.length)
+    setLastAttendance(attendanceHistory[0]?.checkInDate || null)
+    
+  } catch (error) {
+    console.error('Error loading additional data:', error)
+  } finally {
+    setLoadingCredits(false)
   }
+}
 
   const handleStatusChange = async (newStatus: string) => {
     if (!student) return

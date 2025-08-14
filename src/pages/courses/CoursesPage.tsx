@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
 import * as courseService from '../../services/course'
+import * as creditService from '../../services/studentCredit'
 import toast from 'react-hot-toast'
 import Layout from '../../components/layout/Layout'
 
@@ -21,6 +22,7 @@ const CoursesPage = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<string>('all')
   const [statusFilter, setStatusFilter] = useState<string>('active')
+  const [courseStudentCounts, setCourseStudentCounts] = useState<Record<string, number>>({})
 
   // Load courses
   useEffect(() => {
@@ -30,51 +32,101 @@ const CoursesPage = () => {
   }, [user?.schoolId, categoryFilter, statusFilter])
 
   const loadCourses = async () => {
-    if (!user?.schoolId) return
+  if (!user?.schoolId) return
+  
+  console.log('Loading courses for schoolId:', user.schoolId)
+  
+  try {
+    setLoading(true)
+    const data = await courseService.getCourses(
+      user.schoolId,
+      statusFilter === 'all' ? undefined : statusFilter
+    )
     
-    console.log('Loading courses for schoolId:', user.schoolId)
-    
-    try {
-      setLoading(true)
-      const data = await courseService.getCourses(
-        user.schoolId,
-        statusFilter === 'all' ? undefined : statusFilter
-      )
-      
-      // Filter by category if needed
-      let filteredData = data
-      if (categoryFilter !== 'all') {
-        filteredData = data.filter(course => course.category === categoryFilter)
-      }
-      
-      console.log('Courses loaded:', filteredData)
-      setCourses(filteredData)
-    } catch (error) {
-      console.error('Error loading courses:', error)
-      toast.error('ไม่สามารถโหลดข้อมูลวิชาเรียนได้')
-    } finally {
-      setLoading(false)
+    // Filter by category if needed
+    let filteredData = data
+    if (categoryFilter !== 'all') {
+      filteredData = data.filter(course => course.category === categoryFilter)
     }
+    
+    console.log('Courses loaded:', filteredData)
+    setCourses(filteredData)
+    
+    // Load student counts for all courses
+    const courseIds = filteredData.map(course => course.id)
+    await loadCourseStudentCounts(courseIds)
+    
+  } catch (error) {
+    console.error('Error loading courses:', error)
+    toast.error('ไม่สามารถโหลดข้อมูลวิชาเรียนได้')
+  } finally {
+    setLoading(false)
   }
+}
+
+  const loadCourseStudentCounts = async (courseIds: string[]) => {
+  if (!user?.schoolId || courseIds.length === 0) return
+  
+  try {
+    const counts: Record<string, number> = {}
+    
+    // Load student counts for each course
+    await Promise.all(
+      courseIds.map(async (courseId) => {
+        try {
+          // Get all active credits for this course
+          const courseCredits = await creditService.getSchoolCredits(
+            user.schoolId,
+            { 
+              courseId: courseId, 
+              status: 'active' 
+            }
+          )
+          
+          // Filter only credits with remaining balance
+          const activeCredits = courseCredits.filter(credit => credit.remainingCredits > 0)
+          
+          // Get unique student IDs
+          const uniqueStudentIds = [...new Set(activeCredits.map(credit => credit.studentId))]
+          
+          counts[courseId] = uniqueStudentIds.length
+        } catch (error) {
+          console.error(`Error loading student count for course ${courseId}:`, error)
+          counts[courseId] = 0
+        }
+      })
+    )
+    
+    console.log('Course student counts:', counts)
+    setCourseStudentCounts(counts)
+  } catch (error) {
+    console.error('Error loading course student counts:', error)
+  }
+}
 
   // Search courses
   const handleSearch = async () => {
-    if (!user?.schoolId) return
-    
-    if (searchTerm.trim()) {
-      setLoading(true)
-      try {
-        const results = await courseService.searchCourses(user.schoolId, searchTerm)
-        setCourses(results)
-      } catch (error) {
-        toast.error('เกิดข้อผิดพลาดในการค้นหา')
-      } finally {
-        setLoading(false)
-      }
-    } else {
-      loadCourses()
+  if (!user?.schoolId) return
+  
+  if (searchTerm.trim()) {
+    setLoading(true)
+    try {
+      const results = await courseService.searchCourses(user.schoolId, searchTerm)
+      setCourses(results)
+      
+      // Load student counts for search results
+      const courseIds = results.map(course => course.id)
+      await loadCourseStudentCounts(courseIds)
+      
+    } catch (error) {
+      toast.error('เกิดข้อผิดพลาดในการค้นหา')
+    } finally {
+      setLoading(false)
     }
+  } else {
+    loadCourses()
   }
+}
 
   const getCategoryBadge = (category: string) => {
     const categoryConfig = {
@@ -252,7 +304,7 @@ const CoursesPage = () => {
                   {/* Course Details */}
                   <div className="flex items-center text-gray-600 text-sm">
                     <Users className="w-4 h-4 mr-2" />
-                    <span>นักเรียน {course.totalEnrolled} คน</span>
+                    <span>นักเรียน {courseStudentCounts[course.id] || 0} คน</span>
                   </div>
 
                   {/* Action Button */}

@@ -45,22 +45,129 @@ const StudentsPage = () => {
   }, [user?.schoolId, statusFilter])
 
   const loadStudentsWithDetails = async () => {
-    if (!user?.schoolId) return
+  if (!user?.schoolId) return
+  
+  try {
+    setLoading(true)
+    console.log('\n=== Starting loadStudentsWithDetails ===')
+    console.log('School ID:', user.schoolId)
     
+    // Get students
+    const studentsData = await studentService.getStudents(
+      user.schoolId,
+      statusFilter === 'all' ? undefined : statusFilter
+    )
+    console.log('Total students loaded:', studentsData.length)
+    
+    // Get additional details for each student
+    const studentsWithDetails = await Promise.all(
+      studentsData.map(async (student) => {
+        try {
+          // เพิ่ม log
+          console.log(`\n=== Loading data for: ${student.firstName} ${student.lastName} ===`)
+          console.log('Student ID:', student.id)
+          
+          // Get total credits
+          const credits = await creditService.getStudentAllCoursesCredits(student.id)
+          console.log('Credits found:', credits.length)
+          
+          if (credits.length > 0) {
+            console.log('Credit details:', credits.map(c => ({
+              course: c.courseName,
+              package: c.packageName,
+              remaining: c.remainingCredits,
+              status: c.status
+            })))
+          }
+          
+          const totalCredits = credits.reduce((sum, credit) => sum + credit.remainingCredits, 0)
+          console.log('Total credits calculated:', totalCredits)
+          
+          const creditsByPackage = credits.map(credit => ({
+            courseName: credit.courseName,
+            packageName: credit.packageName,
+            remainingCredits: credit.remainingCredits,
+            expiryDate: credit.expiryDate
+          }))
+          
+          // Get last attendance
+          console.log('Loading attendance history...')
+          const attendanceHistory = await attendanceService.getAttendanceHistory(
+            user.schoolId,
+            { studentId: student.id }
+          )
+          console.log('Attendance records found:', attendanceHistory.length)
+          
+          const lastAttendance = attendanceHistory[0]?.checkInDate
+          const totalAttendances = attendanceHistory.length
+          
+          if (lastAttendance) {
+            console.log('Last attendance date:', lastAttendance)
+          }
+          
+          const result = {
+            ...student,
+            totalCredits,
+            lastAttendance,
+            totalAttendances,
+            creditsByPackage
+          }
+          
+          console.log('Final student data:', {
+            name: `${student.firstName} ${student.lastName}`,
+            totalCredits: result.totalCredits,
+            totalAttendances: result.totalAttendances,
+            packagesCount: result.creditsByPackage?.length || 0
+          })
+          
+          return result
+          
+        } catch (error) {
+          console.error(`Error loading details for student ${student.id}:`, error)
+          return {
+            ...student,
+            totalCredits: 0,
+            lastAttendance: undefined,
+            totalAttendances: 0,
+            creditsByPackage: []
+          }
+        }
+      })
+    )
+    
+    console.log('\n=== Summary ===')
+    console.log('Students with details loaded:', studentsWithDetails.length)
+    console.log('Students with credits:', studentsWithDetails.filter(s => (s.totalCredits || 0) > 0).length)
+    console.log('Students without credits:', studentsWithDetails.filter(s => (s.totalCredits || 0) === 0).length)
+    
+    setStudents(studentsWithDetails)
+  } catch (error) {
+    console.error('Error in loadStudentsWithDetails:', error)
+    toast.error('ไม่สามารถโหลดข้อมูลนักเรียนได้')
+  } finally {
+    setLoading(false)
+  }
+}
+
+  // Search students
+  const handleSearch = async () => {
+  if (!user?.schoolId) return
+  
+  if (searchTerm.trim()) {
+    setLoading(true)
     try {
-      setLoading(true)
+      console.log('\n=== Starting search ===')
+      console.log('Search term:', searchTerm)
       
-      // Get students
-      const studentsData = await studentService.getStudents(
-        user.schoolId,
-        statusFilter === 'all' ? undefined : statusFilter
-      )
+      const results = await studentService.searchStudents(user.schoolId, searchTerm)
+      console.log('Search results found:', results.length)
       
-      // Get additional details for each student
-      const studentsWithDetails = await Promise.all(
-        studentsData.map(async (student) => {
+      // Get additional details for search results
+      const resultsWithDetails = await Promise.all(
+        results.map(async (student) => {
           try {
-            // Get total credits
+            console.log(`\nLoading details for search result: ${student.firstName} ${student.lastName}`)
+            
             const credits = await creditService.getStudentAllCoursesCredits(student.id)
             const totalCredits = credits.reduce((sum, credit) => sum + credit.remainingCredits, 0)
             const creditsByPackage = credits.map(credit => ({
@@ -70,12 +177,10 @@ const StudentsPage = () => {
               expiryDate: credit.expiryDate
             }))
             
-            // Get last attendance
             const attendanceHistory = await attendanceService.getAttendanceHistory(
               user.schoolId,
               { studentId: student.id }
             )
-            console.log(`Student ${student.firstName} attendance history:`, attendanceHistory.length)
             const lastAttendance = attendanceHistory[0]?.checkInDate
             const totalAttendances = attendanceHistory.length
             
@@ -99,72 +204,18 @@ const StudentsPage = () => {
         })
       )
       
-      setStudents(studentsWithDetails)
+      console.log('Search results with details:', resultsWithDetails.length)
+      setStudents(resultsWithDetails)
     } catch (error) {
-      toast.error('ไม่สามารถโหลดข้อมูลนักเรียนได้')
+      console.error('Error in search:', error)
+      toast.error('เกิดข้อผิดพลาดในการค้นหา')
     } finally {
       setLoading(false)
     }
+  } else {
+    loadStudentsWithDetails()
   }
-
-  // Search students
-  const handleSearch = async () => {
-    if (!user?.schoolId) return
-    
-    if (searchTerm.trim()) {
-      setLoading(true)
-      try {
-        const results = await studentService.searchStudents(user.schoolId, searchTerm)
-        
-        // Get additional details for search results
-        const resultsWithDetails = await Promise.all(
-          results.map(async (student) => {
-            try {
-              const credits = await creditService.getStudentAllCoursesCredits(student.id)
-              const totalCredits = credits.reduce((sum, credit) => sum + credit.remainingCredits, 0)
-              const creditsByPackage = credits.map(credit => ({
-                courseName: credit.courseName,
-                packageName: credit.packageName,
-                remainingCredits: credit.remainingCredits,
-                expiryDate: credit.expiryDate
-              }))
-              
-              const attendanceHistory = await attendanceService.getAttendanceHistory(
-                user.schoolId,
-                { studentId: student.id }
-              )
-              const lastAttendance = attendanceHistory[0]?.checkInDate
-              const totalAttendances = attendanceHistory.length
-              
-              return {
-                ...student,
-                totalCredits,
-                lastAttendance,
-                totalAttendances,
-                creditsByPackage
-              }
-            } catch (error) {
-              return {
-                ...student,
-                totalCredits: 0,
-                lastAttendance: undefined,
-                totalAttendances: 0,
-                creditsByPackage: []
-              }
-            }
-          })
-        )
-        
-        setStudents(resultsWithDetails)
-      } catch (error) {
-        toast.error('เกิดข้อผิดพลาดในการค้นหา')
-      } finally {
-        setLoading(false)
-      }
-    } else {
-      loadStudentsWithDetails()
-    }
-  }
+}
 
   const getStatusBadge = (status: string) => {
     const statusConfig = {
@@ -284,6 +335,8 @@ const StudentsPage = () => {
               <Plus className="w-5 h-5 mr-2" />
               เพิ่มนักเรียน
             </Link>
+
+            
           </div>
         ) : (
           <div className="bg-white shadow-sm rounded-lg overflow-hidden">
