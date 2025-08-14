@@ -551,3 +551,78 @@ export const updateExpiredCredits = async (schoolId: string): Promise<void> => {
     console.error('Error updating expired credits:', error)
   }
 }
+
+/**
+ * Get all credits for a school (for admin/reports)
+ * Used in: Course detail, Credit history, Reports
+ */
+export const getSchoolCredits = async (
+  schoolId: string,
+  filters?: {
+    courseId?: string
+    studentId?: string
+    status?: string
+    startDate?: string
+    endDate?: string
+  }
+): Promise<StudentCredit[]> => {
+  try {
+    console.log('Getting school credits:', { schoolId, filters })
+    
+    const creditsRef = collection(db, 'student_credits')
+    let conditions = [where('schoolId', '==', schoolId)]
+    
+    // Add filters if provided
+    if (filters?.courseId) {
+      conditions.push(where('courseId', '==', filters.courseId))
+    }
+    if (filters?.studentId) {
+      conditions.push(where('studentId', '==', filters.studentId))
+    }
+    if (filters?.status) {
+      conditions.push(where('status', '==', filters.status))
+    }
+    
+    const q = query(creditsRef, ...conditions)
+    const snapshot = await getDocs(q)
+    
+    console.log(`Found ${snapshot.size} credits for school`)
+    
+    let credits: StudentCredit[] = []
+    snapshot.docs.forEach(doc => {
+      const data = doc.data() as any
+      
+      // Calculate days until expiry
+      let daysUntilExpiry = null
+      if (data.hasExpiry && data.expiryDate) {
+        daysUntilExpiry = calculateDaysUntilExpiry(data.expiryDate)
+      }
+      
+      credits.push({
+        id: doc.id,
+        ...data,
+        daysUntilExpiry,
+        createdAt: data.createdAt?.toDate() || new Date(),
+        updatedAt: data.updatedAt?.toDate() || new Date()
+      })
+    })
+    
+    // Client-side filtering for date range
+    if (filters?.startDate) {
+      credits = credits.filter(c => c.purchaseDate >= filters.startDate!)
+    }
+    if (filters?.endDate) {
+      credits = credits.filter(c => c.purchaseDate <= filters.endDate!)
+    }
+    
+    // Sort by purchase date desc
+    credits.sort((a, b) => 
+      new Date(b.purchaseDate).getTime() - new Date(a.purchaseDate).getTime()
+    )
+    
+    return credits
+  } catch (error) {
+    console.error('Error getting school credits:', error)
+    return []
+  }
+}
