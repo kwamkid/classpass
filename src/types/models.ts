@@ -139,11 +139,22 @@ export interface EnrolledCourse {
   status: 'active' | 'completed' | 'dropped'
 }
 
-// Credit Package Types
+// Credit Package Types - Updated for Multi-Course Support
 export interface CreditPackage {
   id: string
   schoolId: string
-  courseId: string
+  
+  // Changed from single course to multiple courses
+  courseId?: string // Deprecated - for backward compatibility
+  courseName?: string // Deprecated - for backward compatibility
+  
+  // New fields for multi-course support
+  applicableCourseIds: string[] // Array of course IDs this package can be used with
+  applicableCourseNames: string[] // Array of course names for display
+  isUniversal: boolean // True if can be used with all courses
+  courseCategories?: string[] // Categories for filtering
+  courseLevels?: string[] // Grade levels for filtering
+  
   name: string
   description?: string
   code: string
@@ -152,6 +163,7 @@ export interface CreditPackage {
   pricePerCredit: number
   validityType: 'months' | 'days' | 'unlimited'
   validityValue?: number
+  validityDescription?: string
   isPromotion: boolean
   originalPrice?: number
   discountPercent?: number
@@ -166,26 +178,44 @@ export interface CreditPackage {
   updatedAt: Date
 }
 
-// Student Credit Types
+// Student Credit Types - Updated for Multi-Course Support
 export interface StudentCredit {
   id: string
   schoolId: string
   studentId: string
-  courseId: string
+  
+  // Changed from single course to multiple courses
+  courseId?: string // Deprecated - for backward compatibility
+  courseName?: string // Deprecated - for backward compatibility
+  
+  // New fields for multi-course support
+  applicableCourseIds: string[] // Array of course IDs this credit can be used with
+  applicableCourseNames: string[] // Array of course names for display
+  isUniversal: boolean // True if can be used with all courses
+  
   packageId: string
   studentName: string // Denormalized
-  courseName: string // Denormalized
+  studentCode: string // Denormalized
   packageName: string
+  packageCode?: string
   totalCredits: number
+  bonusCredits: number
   usedCredits: number
   remainingCredits: number
   originalPrice: number
+  discountAmount: number
   finalPrice: number
+  pricePerCredit: number
   paymentStatus: 'pending' | 'paid' | 'refunded'
   paymentMethod: 'cash' | 'transfer' | 'credit_card' | 'promptpay'
+  paymentReference?: string
+  paymentDate?: string
+  paymentNote?: string
   hasExpiry: boolean
   purchaseDate: string
+  activationDate: string
   expiryDate?: string
+  daysUntilExpiry?: number
   status: 'active' | 'expired' | 'depleted' | 'suspended'
   receiptNumber?: string
   createdAt: Date
@@ -197,13 +227,21 @@ export interface Attendance {
   id: string
   schoolId: string
   studentId: string
-  courseId: string
+  courseId: string // The actual course used for this attendance
   creditId: string
+  studentCode: string // Denormalized
   studentName: string // Denormalized
-  courseName: string // Denormalized
+  studentNickname?: string // Denormalized
+  courseName: string // The actual course name
+  courseCode?: string // Denormalized
+  packageName?: string // Which package was used
   checkInDate: string
   checkInTime: string
+  checkInMethod: 'manual' | 'qr_code' | 'face_recognition'
   sessionDate: string
+  sessionStartTime?: string
+  sessionEndTime?: string
+  sessionRoom?: string
   creditsDeducted: number
   creditsBefore: number
   creditsAfter: number
@@ -212,7 +250,10 @@ export interface Attendance {
   lateMinutes?: number
   checkedBy: string
   checkedByName: string
+  checkedByRole: string
+  teacherNotes?: string
   createdAt: Date
+  updatedAt?: Date
 }
 
 // Auth Types
