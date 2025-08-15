@@ -144,14 +144,14 @@ export interface CreditPackage {
   id: string
   schoolId: string
   
-  // Changed from single course to multiple courses
+  // Backward compatibility - keep these for now
   courseId?: string // Deprecated - for backward compatibility
   courseName?: string // Deprecated - for backward compatibility
   
-  // New fields for multi-course support
-  applicableCourseIds: string[] // Array of course IDs this package can be used with
-  applicableCourseNames: string[] // Array of course names for display
-  isUniversal: boolean // True if can be used with all courses
+  // New fields for multi-course support - made optional for backward compatibility
+  applicableCourseIds?: string[] // Array of course IDs this package can be used with
+  applicableCourseNames?: string[] // Array of course names for display
+  isUniversal?: boolean // True if can be used with all courses
   courseCategories?: string[] // Categories for filtering
   courseLevels?: string[] // Grade levels for filtering
   
@@ -189,9 +189,9 @@ export interface StudentCredit {
   courseName?: string // Deprecated - for backward compatibility
   
   // New fields for multi-course support
-  applicableCourseIds: string[] // Array of course IDs this credit can be used with
-  applicableCourseNames: string[] // Array of course names for display
-  isUniversal: boolean // True if can be used with all courses
+  applicableCourseIds?: string[] // Array of course IDs this credit can be used with
+  applicableCourseNames?: string[] // Array of course names for display
+  isUniversal?: boolean // True if can be used with all courses
   
   packageId: string
   studentName: string // Denormalized

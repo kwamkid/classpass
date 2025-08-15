@@ -14,8 +14,9 @@ import {
 } from 'firebase/firestore'
 import { db } from './firebase'
 
-// Import type properly
-import type { StudentCredit } from '../types/models'
+// Import and re-export type
+import type { StudentCredit, CreditPackage } from '../types/models'
+export type { StudentCredit, CreditPackage }
 
 // Interface for credit summary by package
 export interface CreditPackageSummary {
