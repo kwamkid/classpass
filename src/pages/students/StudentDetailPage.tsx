@@ -25,6 +25,9 @@ import * as attendanceService from '../../services/attendance'
 import Layout from '../../components/layout/Layout'
 import toast from 'react-hot-toast'
 
+// Import type properly
+import type { StudentCredit } from '../../services/studentCredit'
+
 interface CreditDetail {
   id: string
   courseName: string
@@ -92,10 +95,10 @@ const StudentDetailPage = () => {
       const credits = await creditService.getStudentAllActiveCredits(id, user.schoolId)
       console.log('Active credits found:', credits.length)
       
-      // Map to detail format
+      // Map to detail format - Fixed: handle optional courseName
       setCreditDetails(credits.map(credit => ({
         id: credit.id,
-        courseName: credit.courseName,
+        courseName: getCourseName(credit),
         packageName: credit.packageName,
         totalCredits: credit.totalCredits,
         usedCredits: credit.usedCredits,
@@ -121,6 +124,23 @@ const StudentDetailPage = () => {
     } finally {
       setLoadingCredits(false)
     }
+  }
+
+  // Helper function to get course name
+  const getCourseName = (credit: StudentCredit): string => {
+    // Check old field first
+    if (credit.courseName) return credit.courseName
+    
+    // Check if universal
+    if (credit.isUniversal) return 'ใช้ได้ทุกวิชา'
+    
+    // Check new multi-course fields
+    if (credit.applicableCourseNames && credit.applicableCourseNames.length > 0) {
+      return credit.applicableCourseNames.join(', ')
+    }
+    
+    // Default
+    return 'ไม่ระบุวิชา'
   }
 
   const handleStatusChange = async (newStatus: string) => {

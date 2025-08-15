@@ -14,57 +14,16 @@ import {
 } from 'firebase/firestore'
 import { db } from './firebase'
 
-// Types
-export interface StudentCredit {
-  id: string
-  schoolId: string
-  studentId: string
-  packageId: string
-  
-  // Multi-course support
-  applicableCourseIds: string[]
-  isUniversal: boolean
-  
-  // Reference Information (Denormalized)
-  studentName: string
-  studentCode: string
+// Import type properly
+import type { StudentCredit } from '../types/models'
+
+// Interface for credit summary by package
+export interface CreditPackageSummary {
+  courseName?: string
   packageName: string
-  packageCode?: string
-  
-  // Credit Information
-  totalCredits: number
-  bonusCredits: number
-  usedCredits: number
   remainingCredits: number
-  
-  // Financial Information
-  originalPrice: number
-  discountAmount: number
-  finalPrice: number
-  pricePerCredit: number
-  paymentStatus: 'pending' | 'paid' | 'refunded'
-  paymentMethod: 'cash' | 'transfer' | 'credit_card' | 'promptpay'
-  paymentReference?: string
-  paymentDate?: string
-  paymentNote?: string
-  
-  // Validity Period
-  hasExpiry: boolean
-  purchaseDate: string
-  activationDate: string
   expiryDate?: string
-  daysUntilExpiry?: number
-  
-  // Status
-  status: 'active' | 'expired' | 'depleted' | 'suspended'
-  
-  // Receipt/Invoice
-  receiptNumber?: string
-  invoiceNumber?: string
-  
-  // Timestamps
-  createdAt: Date
-  updatedAt: Date
+  applicableCourses?: string[]
 }
 
 export interface PurchaseCreditsData {
@@ -75,15 +34,6 @@ export interface PurchaseCreditsData {
   discountAmount?: number
   paymentNote?: string
   paymentReference?: string
-}
-
-// Interface for credit summary by package
-export interface CreditPackageSummary {
-  courseName?: string
-  packageName: string
-  remainingCredits: number
-  expiryDate?: string
-  applicableCourses?: string[]
 }
 
 // Generate receipt number
@@ -153,7 +103,6 @@ export const purchaseCredits = async (
         creditPackage.validityValue
       )
       
-      // Prepare credit data
       // Prepare credit data with backward compatibility
       const creditData: any = {
         schoolId,
@@ -161,15 +110,15 @@ export const purchaseCredits = async (
         packageId: data.packageId,
         
         // For backward compatibility - single course fields
-        courseId: creditPackage.courseId || course.id,
-        courseName: course.name || creditPackage.courseName || '',
+        courseId: creditPackage.courseId || creditPackage.applicableCourseIds?.[0] || '',
+        courseName: creditPackage.courseName || creditPackage.applicableCourseNames?.[0] || '',
         
         // For new multi-course system
-        applicableCourseIds: creditPackage.applicableCourseIds || [creditPackage.courseId || course.id],
-        applicableCourseNames: creditPackage.applicableCourseNames || [course.name || creditPackage.courseName || ''],
+        applicableCourseIds: creditPackage.applicableCourseIds || [creditPackage.courseId].filter(Boolean),
+        applicableCourseNames: creditPackage.applicableCourseNames || [creditPackage.courseName].filter(Boolean),
         isUniversal: creditPackage.isUniversal || false,
         
-        // Reference info - ตรวจสอบและใส่ค่า default ถ้าเป็น undefined
+        // Reference info
         studentName: `${student.firstName} ${student.lastName}`,
         studentCode: student.studentCode || '',
         packageName: creditPackage.name || '',
@@ -440,6 +389,7 @@ export const getStudentCreditsSummary = async (
       }
       
       return {
+        courseName: credit.courseName,
         packageName: credit.packageName,
         remainingCredits: credit.remainingCredits,
         expiryDate: credit.expiryDate,

@@ -262,13 +262,13 @@ const AdjustCreditsPage = () => {
         updatedAt: serverTimestamp()
       })
       
-      // Record adjustment
+      // Record adjustment - Fixed: Check for courseName
       const adjustmentData = {
         schoolId: user.schoolId,
         studentId: selectedCredit.studentId,
         creditId: selectedCredit.id,
         studentName: selectedCredit.studentName,
-        courseName: selectedCredit.courseName,
+        courseName: selectedCredit.courseName || selectedCredit.applicableCourseNames?.[0] || 'ไม่ระบุวิชา',
         
         adjustmentType,
         amount: adjustmentType === 'set' ? newCredits : amount,
@@ -310,6 +310,15 @@ const AdjustCreditsPage = () => {
       hour: '2-digit',
       minute: '2-digit'
     })
+  }
+
+  const getCourseName = (credit: studentCreditService.StudentCredit): string => {
+    if (credit.courseName) return credit.courseName
+    if (credit.isUniversal) return 'ใช้ได้ทุกวิชา'
+    if (credit.applicableCourseNames && credit.applicableCourseNames.length > 0) {
+      return credit.applicableCourseNames.join(', ')
+    }
+    return 'ไม่ระบุวิชา'
   }
 
   if (loading) {
@@ -450,7 +459,7 @@ const AdjustCreditsPage = () => {
                         >
                           <div className="flex items-center justify-between">
                             <div className="flex-1">
-                              <h4 className="font-medium text-gray-900">{credit.courseName}</h4>
+                              <h4 className="font-medium text-gray-900">{getCourseName(credit)}</h4>
                               <p className="text-sm text-gray-500 mt-1">
                                 {credit.packageName} • ซื้อเมื่อ {new Date(credit.purchaseDate).toLocaleDateString('th-TH')}
                               </p>
@@ -551,7 +560,7 @@ const AdjustCreditsPage = () => {
                 
                 {/* Credit Info */}
                 <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                  <p className="text-sm font-medium text-gray-900">{selectedCredit.courseName}</p>
+                  <p className="text-sm font-medium text-gray-900">{getCourseName(selectedCredit)}</p>
                   <p className="text-xs text-gray-500">{selectedCredit.packageName}</p>
                   <p className="text-lg font-bold text-primary-600 mt-2">
                     เครดิตคงเหลือ: {selectedCredit.remainingCredits} ครั้ง
