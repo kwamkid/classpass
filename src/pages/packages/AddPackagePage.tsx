@@ -146,39 +146,45 @@ const AddPackagePage = () => {
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
+  const generatePackageCode = () => {
+    const timestamp = Date.now().toString().slice(-6)
+    const random = Math.floor(Math.random() * 100).toString().padStart(2, '0')
+    return `PKG${timestamp}${random}`
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  e.preventDefault()
+  
+  if (!validateForm()) {
+    toast.error('กรุณากรอกข้อมูลให้ครบถ้วน')
+    return
+  }
+  
+  if (!user?.schoolId) {
+    toast.error('ไม่พบข้อมูลโรงเรียน')
+    return
+  }
+  
+  try {
+    setLoading(true)
     
-    if (!validateForm()) {
-      toast.error('กรุณากรอกข้อมูลให้ครบถ้วน')
-      return
+    const packageData: packageService.CreatePackageData = {
+      applicableCourseIds: formData.applicableCourseIds,
+      isUniversal: formData.isUniversal,
+      name: formData.name.trim(),
+      description: formData.description.trim(),
+      code: generatePackageCode(), // <-- เพิ่มบรรทัดนี้
+      credits: formData.credits,
+      price: formData.price,
+      validityType: formData.validityType,
+      validityValue: formData.validityType === 'unlimited' ? undefined : formData.validityValue,
+      bonusCredits: formData.bonusCredits,
+      popular: formData.popular,
+      recommended: formData.recommended,
+      color: formData.color
     }
     
-    if (!user?.schoolId) {
-      toast.error('ไม่พบข้อมูลโรงเรียน')
-      return
-    }
-    
-    try {
-      setLoading(true)
-      
-      const packageData: packageService.CreatePackageData = {
-        applicableCourseIds: formData.applicableCourseIds,
-        isUniversal: formData.isUniversal,
-        name: formData.name.trim(),
-        description: formData.description.trim(),
-        credits: formData.credits,
-        price: formData.price,
-        validityType: formData.validityType,
-        validityValue: formData.validityType === 'unlimited' ? undefined : formData.validityValue,
-        bonusCredits: formData.bonusCredits,
-        popular: formData.popular,
-        recommended: formData.recommended,
-        color: formData.color
-      }
-      
-      await packageService.createPackage(user.schoolId, packageData)
+    await packageService.createPackage(user.schoolId, packageData)
       
       // Complete onboarding step if this is the first package
       if (existingPackages.length === 0) {

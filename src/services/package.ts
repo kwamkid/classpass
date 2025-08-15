@@ -44,17 +44,32 @@ export interface CreatePackageData {
 }
 
 // Create package
-export const createPackage = async (schoolId: string, data: Partial<CreditPackage>): Promise<CreditPackage> => {
+export const createPackage = async (schoolId: string, data: CreatePackageData): Promise<CreditPackage> => {
   try {
+    // คำนวณ fields ที่จำเป็น
+    const totalCreditsWithBonus = data.credits + (data.bonusCredits || 0)
+    const pricePerCredit = data.price / totalCreditsWithBonus
+    
     const packageData = {
       ...data,
       schoolId,
+      totalCreditsWithBonus,
+      pricePerCredit,
+      // ลบ displayOrder ออก
+      status: 'active',
       isActive: true,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     }
     
+    // ลบ displayOrder ออกจาก packageData ถ้ามี
+    delete packageData.displayOrder
+    
+    console.log('📝 Creating package with data:', packageData)
+    
     const docRef = await addDoc(collection(db, 'credit_packages'), packageData)
+    
+    console.log('✅ Package created with ID:', docRef.id)
     
     return {
       id: docRef.id,
@@ -63,7 +78,7 @@ export const createPackage = async (schoolId: string, data: Partial<CreditPackag
       updatedAt: new Date()
     } as CreditPackage
   } catch (error) {
-    console.error('Error creating package:', error)
+    console.error('❌ Error creating package:', error)
     throw error
   }
 }
@@ -71,19 +86,27 @@ export const createPackage = async (schoolId: string, data: Partial<CreditPackag
 // Get all packages for a school
 export const getPackages = async (schoolId: string): Promise<CreditPackage[]> => {
   try {
+    console.log('🔍 Getting packages for school:', schoolId)
+    
     const packagesRef = collection(db, 'credit_packages')
+    
+    // Query แบบง่ายๆ ไม่ต้องใช้ displayOrder
     const q = query(
       packagesRef,
       where('schoolId', '==', schoolId),
       where('isActive', '==', true),
-      orderBy('displayOrder', 'asc')
+      orderBy('createdAt', 'desc') // เรียงตามวันที่สร้างล่าสุดก่อน
     )
     
     const snapshot = await getDocs(q)
+    console.log('📊 Query snapshot size:', snapshot.size)
+    
     const packages: CreditPackage[] = []
     
     snapshot.docs.forEach(doc => {
       const data = doc.data() as any
+      console.log('📦 Package data:', doc.id, data.name)
+      
       packages.push({
         id: doc.id,
         ...data,
@@ -92,12 +115,49 @@ export const getPackages = async (schoolId: string): Promise<CreditPackage[]> =>
       })
     })
     
+    console.log('✅ Final packages:', packages.length)
     return packages
   } catch (error) {
-    console.error('Error getting packages:', error)
+    console.error('❌ Error getting packages:', error)
+    
+    // ถ้า error เพราะ index ให้ลอง query แบบไม่มี orderBy
+    if (error.message?.includes('index')) {
+      console.log('🔄 Retrying without orderBy...')
+      
+      const packagesRef = collection(db, 'credit_packages')
+      const q = query(
+        packagesRef,
+        where('schoolId', '==', schoolId),
+        where('isActive', '==', true)
+      )
+      
+      const snapshot = await getDocs(q)
+      const packages: CreditPackage[] = []
+      
+      snapshot.docs.forEach(doc => {
+        const data = doc.data() as any
+        packages.push({
+          id: doc.id,
+          ...data,
+          createdAt: data.createdAt?.toDate() || new Date(),
+          updatedAt: data.updatedAt?.toDate() || new Date()
+        })
+      })
+      
+      // Sort ใน JavaScript แทน (เรียงตามวันที่สร้างล่าสุดก่อน)
+      packages.sort((a, b) => {
+        const dateA = a.createdAt?.getTime() || 0
+        const dateB = b.createdAt?.getTime() || 0
+        return dateB - dateA // DESC
+      })
+      
+      return packages
+    }
+    
     return []
   }
 }
+
 
 // Get packages by course
 export const getPackagesByCourse = async (schoolId: string, courseId: string): Promise<CreditPackage[]> => {
