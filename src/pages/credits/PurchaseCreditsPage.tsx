@@ -26,6 +26,9 @@ import * as studentCreditService from '../../services/studentCredit'
 import toast from 'react-hot-toast'
 import Layout from '../../components/layout/Layout'
 
+// Import CreditPackage type from types/models
+import type { CreditPackage } from '../../types/models'
+
 const PurchaseCreditsPage = () => {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -35,12 +38,12 @@ const PurchaseCreditsPage = () => {
   const [loading, setLoading] = useState(false)
   const [students, setStudents] = useState<studentService.Student[]>([])
   const [courses, setCourses] = useState<courseService.Course[]>([])
-  const [packages, setPackages] = useState<packageService.CreditPackage[]>([])
+  const [packages, setPackages] = useState<CreditPackage[]>([])
   
   // Form state
   const [selectedStudent, setSelectedStudent] = useState<studentService.Student | null>(null)
   const [selectedCourse, setSelectedCourse] = useState<courseService.Course | null>(null)
-  const [selectedPackage, setSelectedPackage] = useState<packageService.CreditPackage | null>(null)
+  const [selectedPackage, setSelectedPackage] = useState<CreditPackage | null>(null)
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'transfer' | 'credit_card' | 'promptpay'>('cash')
   const [paymentNote, setPaymentNote] = useState('')
   const [discountAmount, setDiscountAmount] = useState(0)
@@ -120,10 +123,10 @@ const PurchaseCreditsPage = () => {
         courseId: pkg.courseId || course.id,
         courseName: pkg.courseName || course.name,
         // For new multi-course system
-        applicableCourseIds: pkg.applicableCourseIds || [course.id],
-        applicableCourseNames: pkg.applicableCourseNames || [course.name],
+        applicableCourseIds: pkg.applicableCourseIds || [pkg.courseId || course.id],
+        applicableCourseNames: pkg.applicableCourseNames || [pkg.courseName || course.name],
         isUniversal: pkg.isUniversal || false
-      }))
+      })) as CreditPackage[]
       
       setPackages(processedPackages)
     } catch (error) {
@@ -133,7 +136,7 @@ const PurchaseCreditsPage = () => {
     }
   }
 
-  const handleSelectPackage = (pkg: packageService.CreditPackage) => {
+  const handleSelectPackage = (pkg: CreditPackage) => {
     setSelectedPackage(pkg)
     setStep(3)
   }

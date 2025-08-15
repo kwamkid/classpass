@@ -15,8 +15,8 @@ import {
 import { db } from './firebase'
 
 // Import and re-export type
-import type { StudentCredit, CreditPackage } from '../types/models'
-export type { StudentCredit, CreditPackage }
+import type { StudentCredit } from '../types/models'
+export type { StudentCredit }
 
 // Interface for credit summary by package
 export interface CreditPackageSummary {
