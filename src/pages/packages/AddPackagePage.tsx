@@ -32,7 +32,7 @@ const AddPackagePage = () => {
   
   const [formData, setFormData] = useState({
     applicableCourseIds: [] as string[],
-    isUniversal: false,
+    isUniversal: true,
     name: '',
     description: '',
     credits: 1,
@@ -252,6 +252,11 @@ const AddPackagePage = () => {
             <h2 className="text-xl font-medium text-gray-900 mb-6">
               เลือกวิชา
             </h2>
+            
+            {/* เพิ่มข้อความอธิบาย */}
+            <p className="text-sm text-gray-500 mb-4">
+              เริ่มต้นแพ็คเกจนี้สามารถใช้ได้กับทุกวิชา คุณสามารถเปลี่ยนเป็นเฉพาะบางวิชาได้ตามต้องการ
+            </p>
             
             <CourseMultiSelect
               schoolId={user?.schoolId || ''}
