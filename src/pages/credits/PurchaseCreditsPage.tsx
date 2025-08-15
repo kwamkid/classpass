@@ -112,7 +112,20 @@ const PurchaseCreditsPage = () => {
     try {
       setLoading(true)
       const packagesData = await packageService.getPackagesByCourse(user!.schoolId, course.id)
-      setPackages(packagesData)
+      
+      // Process packages to ensure they have correct course info
+      const processedPackages = packagesData.map(pkg => ({
+        ...pkg,
+        // For backward compatibility - ensure courseId and courseName exist
+        courseId: pkg.courseId || course.id,
+        courseName: pkg.courseName || course.name,
+        // For new multi-course system
+        applicableCourseIds: pkg.applicableCourseIds || [course.id],
+        applicableCourseNames: pkg.applicableCourseNames || [course.name],
+        isUniversal: pkg.isUniversal || false
+      }))
+      
+      setPackages(processedPackages)
     } catch (error) {
       toast.error('ไม่สามารถโหลดแพ็คเกจได้')
     } finally {
@@ -131,14 +144,21 @@ const PurchaseCreditsPage = () => {
   }
 
   const handlePurchase = async () => {
-    if (!selectedStudent || !selectedPackage || !user?.schoolId) return
+    if (!selectedStudent || !selectedPackage || !user?.schoolId || !selectedCourse) return
     
     try {
       setLoading(true)
       
+      // Ensure package has course information
+      const packageWithCourse = {
+        ...selectedPackage,
+        courseId: selectedPackage.courseId || selectedCourse.id,
+        courseName: selectedPackage.courseName || selectedCourse.name
+      }
+      
       const purchaseData: studentCreditService.PurchaseCreditsData = {
         studentId: selectedStudent.id,
-        packageId: selectedPackage.id,
+        packageId: packageWithCourse.id,
         paymentMethod,
         paymentAmount: calculateFinalPrice(),
         discountAmount,
@@ -149,15 +169,12 @@ const PurchaseCreditsPage = () => {
       console.log('User School ID:', user.schoolId)
       console.log('Purchase Data:', purchaseData)
       console.log('Selected Student:', selectedStudent)
-      console.log('Selected Package:', selectedPackage)
-      console.log('Selected Course ID:', selectedPackage.courseId)
-      console.log('Selected Course Name:', selectedPackage.courseName)
+      console.log('Selected Package:', packageWithCourse)
+      console.log('Selected Course:', selectedCourse)
       
       const result = await studentCreditService.purchaseCredits(user.schoolId, purchaseData)
       
       console.log('Purchase Result:', result)
-      console.log('Result Course ID:', result.courseId)
-      console.log('Result Status:', result.status)
       
       toast.success('ซื้อแพ็คเกจสำเร็จ!')
       
@@ -440,7 +457,9 @@ const PurchaseCreditsPage = () => {
                             </p>
                             
                             <p className="text-sm text-gray-600">
-                              {pkg.validityDescription}
+                              {pkg.validityDescription || 
+                                (pkg.validityType === 'unlimited' ? 'ไม่มีกำหนด' : 
+                                 `ใช้ได้ ${pkg.validityValue} ${pkg.validityType === 'months' ? 'เดือน' : 'วัน'}`)}
                             </p>
                             
                             <div className="mt-4 text-sm text-gray-500">
@@ -487,7 +506,11 @@ const PurchaseCreditsPage = () => {
                     </div>
                     <div className="flex justify-between items-center py-3 border-b">
                       <span className="text-base text-gray-600">ระยะเวลา</span>
-                      <span className="font-medium text-base">{selectedPackage.validityDescription}</span>
+                      <span className="font-medium text-base">
+                        {selectedPackage.validityDescription || 
+                         (selectedPackage.validityType === 'unlimited' ? 'ไม่มีกำหนด' : 
+                          `ใช้ได้ ${selectedPackage.validityValue} ${selectedPackage.validityType === 'months' ? 'เดือน' : 'วัน'}`)}
+                      </span>
                     </div>
                     
                     <div className="pt-4">

@@ -154,16 +154,22 @@ export const purchaseCredits = async (
       )
       
       // Prepare credit data
+      // Prepare credit data with backward compatibility
       const creditData: any = {
         schoolId,
         studentId: data.studentId,
         packageId: data.packageId,
         
-        // Multi-course support
-        applicableCourseIds: creditPackage.applicableCourseIds || [],
+        // For backward compatibility - single course fields
+        courseId: creditPackage.courseId || course.id,
+        courseName: course.name || creditPackage.courseName || '',
+        
+        // For new multi-course system
+        applicableCourseIds: creditPackage.applicableCourseIds || [creditPackage.courseId || course.id],
+        applicableCourseNames: creditPackage.applicableCourseNames || [course.name || creditPackage.courseName || ''],
         isUniversal: creditPackage.isUniversal || false,
         
-        // Reference info
+        // Reference info - ตรวจสอบและใส่ค่า default ถ้าเป็น undefined
         studentName: `${student.firstName} ${student.lastName}`,
         studentCode: student.studentCode || '',
         packageName: creditPackage.name || '',
