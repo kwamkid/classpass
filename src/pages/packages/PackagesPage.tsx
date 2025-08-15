@@ -58,26 +58,32 @@ const PackagesPage = () => {
   }, [user?.schoolId])
 
   const loadData = async () => {
-    if (!user?.schoolId) return
+  if (!user?.schoolId) return
+  
+  console.log('🔍 Loading packages for schoolId:', user.schoolId)
+  
+  try {
+    setLoading(true)
     
-    try {
-      setLoading(true)
-      
-      // Load courses first
-      const coursesData = await courseService.getCourses(user.schoolId)
-      setCourses(coursesData)
-      
-      // Load all packages
-      const packagesData = await packageService.getPackages(user.schoolId)
-      setPackages(packagesData)
-      
-    } catch (error) {
-      console.error('Error loading data:', error)
-      toast.error('ไม่สามารถโหลดข้อมูลได้')
-    } finally {
-      setLoading(false)
-    }
+    // Load courses first
+    const coursesData = await courseService.getCourses(user.schoolId)
+    setCourses(coursesData)
+    console.log('📚 Courses loaded:', coursesData.length)
+    
+    // Load all packages
+    const packagesData = await packageService.getPackages(user.schoolId)
+    console.log('📦 Packages loaded:', packagesData)
+    console.log('📦 Packages count:', packagesData.length)
+    
+    setPackages(packagesData)
+    
+  } catch (error) {
+    console.error('❌ Error loading data:', error)
+    toast.error('ไม่สามารถโหลดข้อมูลได้')
+  } finally {
+    setLoading(false)
   }
+}
 
   const handleDelete = async (id: string) => {
     try {
