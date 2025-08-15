@@ -18,6 +18,31 @@ import { db } from './firebase'
 import type { CreditPackage } from '../types/models'
 export type { CreditPackage }
 
+// Type for creating package
+export interface CreatePackageData {
+  courseId?: string
+  courseName?: string
+  applicableCourseIds?: string[]
+  applicableCourseNames?: string[]
+  isUniversal?: boolean
+  name: string
+  description?: string
+  code: string
+  credits: number
+  price: number
+  validityType: 'months' | 'days' | 'unlimited'
+  validityValue?: number
+  validityDescription?: string
+  isPromotion?: boolean
+  originalPrice?: number
+  discountPercent?: number
+  bonusCredits?: number
+  popular?: boolean
+  recommended?: boolean
+  displayOrder?: number
+  color?: string
+}
+
 // Create package
 export const createPackage = async (schoolId: string, data: Partial<CreditPackage>): Promise<CreditPackage> => {
   try {

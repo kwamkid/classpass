@@ -173,6 +173,7 @@ export interface CreditPackage {
   recommended: boolean
   displayOrder: number
   color?: string
+  status?: 'active' | 'inactive' | 'archived' // Added for compatibility
   isActive: boolean
   createdAt: Date
   updatedAt: Date
