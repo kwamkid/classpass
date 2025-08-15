@@ -19,13 +19,15 @@ export interface StudentCredit {
   id: string
   schoolId: string
   studentId: string
-  courseId: string
   packageId: string
+  
+  // Multi-course support
+  applicableCourseIds: string[]
+  isUniversal: boolean
   
   // Reference Information (Denormalized)
   studentName: string
   studentCode: string
-  courseName: string
   packageName: string
   packageCode?: string
   
@@ -77,10 +79,11 @@ export interface PurchaseCreditsData {
 
 // Interface for credit summary by package
 export interface CreditPackageSummary {
-  courseName: string
+  courseName?: string
   packageName: string
   remainingCredits: number
   expiryDate?: string
+  applicableCourses?: string[]
 }
 
 // Generate receipt number
@@ -142,16 +145,6 @@ export const purchaseCredits = async (
       
       console.log('Package data:', creditPackage)
       
-      // Get course data
-      const courseRef = doc(db, 'courses', creditPackage.courseId)
-      const courseDoc = await transaction.get(courseRef)
-      if (!courseDoc.exists()) {
-        throw new Error('Course not found')
-      }
-      const course = courseDoc.data()
-      
-      console.log('Course data:', course)
-      
       // Calculate dates
       const purchaseDate = new Date()
       const expiryDate = calculateExpiryDate(
@@ -164,13 +157,15 @@ export const purchaseCredits = async (
       const creditData: any = {
         schoolId,
         studentId: data.studentId,
-        courseId: creditPackage.courseId,
         packageId: data.packageId,
         
-        // Reference info - ตรวจสอบและใส่ค่า default ถ้าเป็น undefined
+        // Multi-course support
+        applicableCourseIds: creditPackage.applicableCourseIds || [],
+        isUniversal: creditPackage.isUniversal || false,
+        
+        // Reference info
         studentName: `${student.firstName} ${student.lastName}`,
         studentCode: student.studentCode || '',
-        courseName: course.name || creditPackage.courseName || '',
         packageName: creditPackage.name || '',
         packageCode: creditPackage.code || '',
         
@@ -194,7 +189,7 @@ export const purchaseCredits = async (
         purchaseDate: purchaseDate.toISOString().split('T')[0],
         activationDate: purchaseDate.toISOString().split('T')[0],
         
-        // Status - ตรวจสอบให้แน่ใจว่า set เป็น 'active'
+        // Status
         status: 'active' as const,
         
         // Receipt
@@ -221,7 +216,7 @@ export const purchaseCredits = async (
       console.log('Final credit data to be saved:', creditData)
       
       // Validate critical fields
-      const requiredFields = ['schoolId', 'studentId', 'courseId', 'packageId', 'studentName', 'courseName', 'packageName']
+      const requiredFields = ['schoolId', 'studentId', 'packageId', 'studentName', 'packageName']
       for (const field of requiredFields) {
         if (!creditData[field]) {
           throw new Error(`Required field ${field} is missing or undefined`)
@@ -255,7 +250,8 @@ export const purchaseCredits = async (
 
 /**
  * Get active credits for a specific student and course
- * Used in: Attendance page for checking available credits for check-in
+ * Returns credits that can be used for the specified course
+ * Sorted by purchase date (FIFO) for proper deduction order
  */
 export const getStudentCreditsForCourse = async (
   studentId: string,
@@ -268,26 +264,28 @@ export const getStudentCreditsForCourse = async (
     const creditsRef = collection(db, 'student_credits')
     let conditions = [
       where('studentId', '==', studentId),
-      where('courseId', '==', courseId),
       where('status', '==', 'active')
     ]
     
-    // Add schoolId if provided
     if (schoolId) {
       conditions.push(where('schoolId', '==', schoolId))
     }
     
     const q = query(creditsRef, ...conditions)
-    
     const snapshot = await getDocs(q)
-    console.log(`Found ${snapshot.size} credits for course ${courseId}`)
     
     const credits: StudentCredit[] = []
     snapshot.docs.forEach(doc => {
       const data = doc.data() as any
       
-      // Only include if has remaining credits
-      if (data.remainingCredits > 0) {
+      // Check if credit can be used for this course
+      const canUseForCourse = data.isUniversal || 
+        (data.applicableCourseIds && data.applicableCourseIds.includes(courseId)) ||
+        // Fallback for old data structure
+        (data.courseId && data.courseId === courseId)
+      
+      // Only include if has remaining credits AND can be used for this course
+      if (data.remainingCredits > 0 && canUseForCourse) {
         let daysUntilExpiry = null
         if (data.hasExpiry && data.expiryDate) {
           daysUntilExpiry = calculateDaysUntilExpiry(data.expiryDate)
@@ -303,16 +301,34 @@ export const getStudentCreditsForCourse = async (
       }
     })
     
-    // Sort by purchase date desc
+    // Sort by purchase date ASC (FIFO - oldest first)
     credits.sort((a, b) => 
-      new Date(b.purchaseDate).getTime() - new Date(a.purchaseDate).getTime()
+      new Date(a.purchaseDate).getTime() - new Date(b.purchaseDate).getTime()
     )
     
-    console.log(`Returning ${credits.length} active credits with remaining balance`)
+    console.log(`Returning ${credits.length} active credits for course ${courseId}`)
     return credits
   } catch (error) {
     console.error('Error getting student credits for course:', error)
     return []
+  }
+}
+
+/**
+ * Get total remaining credits for a specific student and course
+ * This sums up all available credits from all packages that can be used for the course
+ */
+export const getStudentTotalCreditsForCourse = async (
+  studentId: string,
+  courseId: string,
+  schoolId?: string
+): Promise<number> => {
+  try {
+    const credits = await getStudentCreditsForCourse(studentId, courseId, schoolId)
+    return credits.reduce((sum, credit) => sum + credit.remainingCredits, 0)
+  } catch (error) {
+    console.error('Error getting total credits for course:', error)
+    return 0
   }
 }
 
@@ -333,15 +349,12 @@ export const getStudentAllActiveCredits = async (
       where('status', '==', 'active')
     ]
     
-    // Add schoolId if provided
     if (schoolId) {
       conditions.push(where('schoolId', '==', schoolId))
     }
     
     const q = query(creditsRef, ...conditions)
-    
     const snapshot = await getDocs(q)
-    console.log(`Found ${snapshot.size} total credits for student`)
     
     const credits: StudentCredit[] = []
     snapshot.docs.forEach(doc => {
@@ -364,10 +377,10 @@ export const getStudentAllActiveCredits = async (
       }
     })
     
-    // Sort by course name, then by purchase date
+    // Sort by package name, then by purchase date
     credits.sort((a, b) => {
-      if (a.courseName !== b.courseName) {
-        return a.courseName.localeCompare(b.courseName)
+      if (a.packageName !== b.packageName) {
+        return a.packageName.localeCompare(b.packageName)
       }
       return new Date(b.purchaseDate).getTime() - new Date(a.purchaseDate).getTime()
     })
@@ -403,17 +416,30 @@ export const getStudentTotalCredits = async (
  */
 export const getStudentCreditsSummary = async (
   studentId: string,
-  schoolId?: string
+  schoolId?: string,
+  courses?: any[]
 ): Promise<CreditPackageSummary[]> => {
   try {
     const credits = await getStudentAllActiveCredits(studentId, schoolId)
     
-    return credits.map(credit => ({
-      courseName: credit.courseName,
-      packageName: credit.packageName,
-      remainingCredits: credit.remainingCredits,
-      expiryDate: credit.expiryDate
-    }))
+    return credits.map(credit => {
+      let applicableCourses: string[] = []
+      
+      if (credit.isUniversal) {
+        applicableCourses = ['ใช้ได้ทุกวิชา']
+      } else if (credit.applicableCourseIds && courses) {
+        applicableCourses = credit.applicableCourseIds
+          .map(id => courses.find(c => c.id === id)?.name)
+          .filter(Boolean) as string[]
+      }
+      
+      return {
+        packageName: credit.packageName,
+        remainingCredits: credit.remainingCredits,
+        expiryDate: credit.expiryDate,
+        applicableCourses
+      }
+    })
   } catch (error) {
     console.error('Error getting student credits summary:', error)
     return []
@@ -435,49 +461,6 @@ export const getStudentCredits = async (
   return getStudentAllActiveCredits(studentId)
 }
 
-// Get all student credits (without filtering) - for debugging
-export const getAllStudentCreditsDebug = async (
-  studentId: string
-): Promise<StudentCredit[]> => {
-  try {
-    console.log('DEBUG: Getting ALL credits for student:', studentId)
-    
-    const creditsRef = collection(db, 'student_credits')
-    const q = query(
-      creditsRef,
-      where('studentId', '==', studentId)
-    )
-    
-    const snapshot = await getDocs(q)
-    console.log('DEBUG: Total credits found:', snapshot.size)
-    
-    const credits: StudentCredit[] = []
-    snapshot.docs.forEach((doc, index) => {
-      const data = doc.data() as any
-      console.log(`DEBUG: Credit ${index + 1}:`, {
-        id: doc.id,
-        courseId: data.courseId,
-        courseName: data.courseName,
-        status: data.status,
-        remainingCredits: data.remainingCredits,
-        totalCredits: data.totalCredits
-      })
-      
-      credits.push({
-        id: doc.id,
-        ...data,
-        createdAt: data.createdAt?.toDate() || new Date(),
-        updatedAt: data.updatedAt?.toDate() || new Date()
-      })
-    })
-    
-    return credits
-  } catch (error) {
-    console.error('DEBUG: Error getting all student credits:', error)
-    return []
-  }
-}
-
 // Legacy function - redirects to new centralized function
 export const getStudentAllCoursesCredits = async (
   studentId: string
@@ -485,7 +468,7 @@ export const getStudentAllCoursesCredits = async (
   return getStudentAllActiveCredits(studentId)
 }
 
-// Use credits (for attendance)
+// Use credits (for attendance) - Uses FIFO
 export const useCredits = async (
   creditId: string,
   creditsToUse: number = 1
@@ -573,9 +556,6 @@ export const getSchoolCredits = async (
     let conditions = [where('schoolId', '==', schoolId)]
     
     // Add filters if provided
-    if (filters?.courseId) {
-      conditions.push(where('courseId', '==', filters.courseId))
-    }
     if (filters?.studentId) {
       conditions.push(where('studentId', '==', filters.studentId))
     }
@@ -591,6 +571,18 @@ export const getSchoolCredits = async (
     let credits: StudentCredit[] = []
     snapshot.docs.forEach(doc => {
       const data = doc.data() as any
+      
+      // Filter by courseId if specified
+      if (filters?.courseId) {
+        const canUseForCourse = data.isUniversal || 
+          (data.applicableCourseIds && data.applicableCourseIds.includes(filters.courseId)) ||
+          // Fallback for old data
+          (data.courseId && data.courseId === filters.courseId)
+        
+        if (!canUseForCourse) {
+          return // Skip this credit
+        }
+      }
       
       // Calculate days until expiry
       let daysUntilExpiry = null
@@ -623,6 +615,50 @@ export const getSchoolCredits = async (
     return credits
   } catch (error) {
     console.error('Error getting school credits:', error)
+    return []
+  }
+}
+
+// Debug functions
+export const getAllStudentCreditsDebug = async (
+  studentId: string
+): Promise<StudentCredit[]> => {
+  try {
+    console.log('DEBUG: Getting ALL credits for student:', studentId)
+    
+    const creditsRef = collection(db, 'student_credits')
+    const q = query(
+      creditsRef,
+      where('studentId', '==', studentId)
+    )
+    
+    const snapshot = await getDocs(q)
+    console.log('DEBUG: Total credits found:', snapshot.size)
+    
+    const credits: StudentCredit[] = []
+    snapshot.docs.forEach((doc, index) => {
+      const data = doc.data() as any
+      console.log(`DEBUG: Credit ${index + 1}:`, {
+        id: doc.id,
+        packageName: data.packageName,
+        status: data.status,
+        remainingCredits: data.remainingCredits,
+        totalCredits: data.totalCredits,
+        isUniversal: data.isUniversal,
+        applicableCourseIds: data.applicableCourseIds
+      })
+      
+      credits.push({
+        id: doc.id,
+        ...data,
+        createdAt: data.createdAt?.toDate() || new Date(),
+        updatedAt: data.updatedAt?.toDate() || new Date()
+      })
+    })
+    
+    return credits
+  } catch (error) {
+    console.error('DEBUG: Error getting all student credits:', error)
     return []
   }
 }

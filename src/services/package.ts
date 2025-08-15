@@ -17,8 +17,10 @@ import { db } from './firebase'
 export interface CreditPackage {
   id: string
   schoolId: string
-  courseId: string
-  courseName?: string // Denormalized
+  
+  // เปลี่ยนจาก courseId เดียว เป็น array
+  applicableCourseIds: string[]  // วิชาที่ใช้ได้
+  isUniversal: boolean           // true = ใช้ได้ทุกวิชา
   
   // Package Information
   name: string
@@ -63,7 +65,8 @@ export interface CreditPackage {
 }
 
 export interface CreatePackageData {
-  courseId: string
+  applicableCourseIds: string[]  // เปลี่ยนจาก courseId
+  isUniversal: boolean           // เพิ่มใหม่
   name: string
   description?: string
   credits: number
@@ -114,9 +117,9 @@ export const getPackages = async (
     const packagesRef = collection(db, 'credit_packages')
     let conditions = [where('schoolId', '==', schoolId)]
     
-    if (courseId) {
-      conditions.push(where('courseId', '==', courseId))
-    }
+    // if (courseId) {
+    //   conditions.push(where('courseId', '==', courseId))
+    // }
     
     if (activeOnly) {
       conditions.push(where('status', '==', 'active'))
@@ -181,27 +184,19 @@ export const getPackage = async (packageId: string): Promise<CreditPackage | nul
 }
 
 // Create new package
+// src/services/package.ts
+
+// src/services/package.ts
+
 export const createPackage = async (
   schoolId: string,
   data: CreatePackageData
 ): Promise<CreditPackage> => {
   try {
-    // Generate code
     const code = await generatePackageCode(schoolId)
-    
-    // Calculate derived fields
     const derived = calculateDerivedFields(data)
     
-    // Get course name for denormalization
-    let courseName = ''
-    if (data.courseId) {
-      const courseDoc = await getDoc(doc(db, 'courses', data.courseId))
-      if (courseDoc.exists()) {
-        courseName = courseDoc.data().name || ''
-      }
-    }
-    
-    // Prepare package data
+    // Prepare package data - ไม่ใส่ courseId เลย
     const packageData: any = {
       schoolId,
       code,
@@ -210,8 +205,15 @@ export const createPackage = async (
       credits: data.credits,
       price: data.price,
       validityType: data.validityType,
-      courseName,
-      courseId: data.courseId,
+      
+      // Multi-course fields
+      applicableCourseIds: data.applicableCourseIds || [],
+      isUniversal: data.isUniversal || false,
+      
+      // ❌ ลบบรรทัดนี้ออก
+      // courseId: data.courseId,
+      // courseName,
+      
       ...derived,
       displayOrder: 0,
       status: 'active' as const,
@@ -233,7 +235,6 @@ export const createPackage = async (
     
     console.log('Creating package with data:', packageData)
     
-    // Create document
     const docRef = await addDoc(collection(db, 'credit_packages'), packageData)
     
     return {
@@ -245,6 +246,32 @@ export const createPackage = async (
   } catch (error) {
     console.error('Error creating package:', error)
     throw error
+  }
+}
+
+// เพิ่ม function ใหม่: Get packages for multiple courses
+export const getPackagesForCourses = async (
+  schoolId: string,
+  courseIds: string[],
+  activeOnly: boolean = true
+): Promise<CreditPackage[]> => {
+  try {
+    // Get all packages
+    const allPackages = await getPackages(schoolId, undefined, activeOnly)
+    
+    // Filter packages that work for any of the specified courses
+    return allPackages.filter(pkg => {
+      // Universal packages work for all courses
+      if (pkg.isUniversal) return true
+      
+      // Check if package includes any of the requested courses
+      return courseIds.some(courseId => 
+        pkg.applicableCourseIds?.includes(courseId)
+      )
+    })
+  } catch (error) {
+    console.error('Error getting packages for courses:', error)
+    return []
   }
 }
 

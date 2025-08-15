@@ -13,7 +13,8 @@ import {
   Award,
   AlertCircle,
   BookOpen,
-  Clock
+  Clock,
+  CreditCard
 } from 'lucide-react'
 import Layout from '../../components/layout/Layout'
 import { useAuthStore } from '../../stores/authStore'
@@ -37,7 +38,8 @@ const PackagesPage = () => {
   
   // Form state for edit
   const [editForm, setEditForm] = useState({
-    courseId: '',
+    applicableCourseIds: [] as string[],
+    isUniversal: false,
     name: '',
     description: '',
     credits: 0,
@@ -90,7 +92,8 @@ const PackagesPage = () => {
 
   const openEditModal = (pkg: packageService.CreditPackage) => {
     setEditForm({
-      courseId: pkg.courseId || '',
+      applicableCourseIds: pkg.applicableCourseIds || [],
+      isUniversal: pkg.isUniversal || false,
       name: pkg.name || '',
       description: pkg.description || '',
       credits: pkg.credits || 0,
@@ -109,7 +112,6 @@ const PackagesPage = () => {
     if (!editModal.package) return
     
     try {
-      // Don't need to pass courseName anymore
       const updateData = {
         ...editForm
       }
@@ -123,10 +125,26 @@ const PackagesPage = () => {
     }
   }
 
-  // Helper function to get course name from courseId
-  const getCourseName = (courseId: string) => {
-    const course = courses.find(c => c.id === courseId)
-    return course?.name || 'ไม่พบวิชา'
+  // Helper function to get course names
+  const getCourseNames = (pkg: packageService.CreditPackage) => {
+    if (pkg.isUniversal) {
+      return 'ใช้ได้ทุกวิชา'
+    }
+    
+    if (!pkg.applicableCourseIds || pkg.applicableCourseIds.length === 0) {
+      return 'ไม่ได้กำหนดวิชา'
+    }
+    
+    const courseNames = pkg.applicableCourseIds
+      .map(id => courses.find(c => c.id === id)?.name)
+      .filter(Boolean)
+      .slice(0, 3) // แสดงแค่ 3 วิชาแรก
+    
+    if (pkg.applicableCourseIds.length > 3) {
+      courseNames.push(`+${pkg.applicableCourseIds.length - 3} วิชา`)
+    }
+    
+    return courseNames.join(', ')
   }
 
   const formatPrice = (price: number) => {
@@ -137,36 +155,14 @@ const PackagesPage = () => {
   const filteredPackages = packages.filter(pkg => {
     if (!searchTerm) return true
     const search = searchTerm.toLowerCase()
-    const courseName = getCourseName(pkg.courseId)
+    const courseNames = getCourseNames(pkg).toLowerCase()
     
     return (
       pkg.name.toLowerCase().includes(search) ||
       pkg.description?.toLowerCase().includes(search) ||
-      courseName.toLowerCase().includes(search)
+      courseNames.includes(search)
     )
   })
-
-  // Group packages by course
-  const groupedPackages = filteredPackages.reduce((groups, pkg) => {
-    const courseId = pkg.courseId
-    const courseName = getCourseName(courseId)
-    
-    if (!groups[courseId]) {
-      groups[courseId] = {
-        courseId,
-        courseName,
-        packages: []
-      }
-    }
-    
-    groups[courseId].packages.push(pkg)
-    return groups
-  }, {} as Record<string, { courseId: string; courseName: string; packages: packageService.CreditPackage[] }>)
-
-  // Sort groups by course name
-  const sortedGroups = Object.values(groupedPackages).sort((a, b) => 
-    a.courseName.localeCompare(b.courseName, 'th')
-  )
 
   // Calculate summary stats
   const totalPackages = packages.length
@@ -250,8 +246,8 @@ const PackagesPage = () => {
           </div>
         </div>
 
-        {/* Packages List - Grouped by Course */}
-        {sortedGroups.length === 0 ? (
+        {/* Packages List */}
+        {filteredPackages.length === 0 ? (
           <div className="bg-white rounded-lg shadow-sm p-12 text-center">
             <Package className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">
@@ -271,115 +267,111 @@ const PackagesPage = () => {
             )}
           </div>
         ) : (
-          <div className="space-y-6">
-            {sortedGroups.map((group) => (
-              <div key={group.courseId} className="bg-white rounded-lg shadow-sm overflow-hidden">
-                {/* Course Header */}
-                <div className="bg-gradient-to-r from-orange-500 to-orange-600 px-6 py-3 border-b border-orange-600">
+          <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-orange-500 to-orange-600 px-6 py-3 border-b border-orange-600">
+              <h3 className="text-lg font-semibold text-white flex items-center">
+                <CreditCard className="w-5 h-5 mr-2" />
+                รายการแพ็คเกจทั้งหมด ({filteredPackages.length})
+              </h3>
+            </div>
+            
+            {/* Package List */}
+            <div className="divide-y divide-gray-100">
+              {filteredPackages.map((pkg) => (
+                <div key={pkg.id} className="px-6 py-4 hover:bg-gray-50 transition-colors">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <BookOpen className="w-5 h-5 text-white" />
-                      <h3 className="text-lg font-semibold text-white">{group.courseName}</h3>
-                      <span className="bg-white/20 text-white px-2.5 py-0.5 rounded-full text-sm font-medium">
-                        {group.packages.length} แพ็คเกจ
+                    {/* Left: Package Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-3">
+                        <h4 className="text-base font-medium text-gray-900 truncate">
+                          {pkg.name}
+                        </h4>
+                        {pkg.popular && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700 flex-shrink-0">
+                            <Star className="w-3 h-3 mr-0.5" />
+                            ยอดนิยม
+                          </span>
+                        )}
+                        {pkg.recommended && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700 flex-shrink-0">
+                            <Award className="w-3 h-3 mr-0.5" />
+                            แนะนำ
+                          </span>
+                        )}
+                      </div>
+                      
+                      {/* Courses */}
+                      <p className="text-sm text-gray-600 mt-1">
+                        <span className="font-medium">วิชา:</span> {getCourseNames(pkg)}
+                      </p>
+                      
+                      {pkg.description && (
+                        <p className="text-sm text-gray-500 mt-1 truncate">{pkg.description}</p>
+                      )}
+                    </div>
+
+                    {/* Center: Credits & Price */}
+                    <div className="flex items-center gap-8 mx-6">
+                      {/* Credits */}
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-gray-900">
+                          {pkg.credits}
+                          {pkg.bonusCredits > 0 && (
+                            <span className="text-lg text-green-600 ml-1">+{pkg.bonusCredits}</span>
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-500">ครั้ง</div>
+                      </div>
+                      
+                      {/* Price */}
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-primary-600">
+                          ฿{formatPrice(pkg.price)}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          (฿{formatPrice(Math.round(pkg.pricePerCredit))}/ครั้ง)
+                        </div>
+                      </div>
+                      
+                      {/* Validity */}
+                      <div className="flex items-center text-sm text-gray-500">
+                        <Clock className="w-4 h-4 mr-1" />
+                        <span>{pkg.validityDescription || 'ไม่มีกำหนด'}</span>
+                      </div>
+                    </div>
+
+                    {/* Right: Status & Actions */}
+                    <div className="flex items-center gap-3 flex-shrink-0">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        pkg.status === 'active' 
+                          ? 'bg-green-100 text-green-700' 
+                          : 'bg-gray-100 text-gray-700'
+                      }`}>
+                        {pkg.status === 'active' ? 'ใช้งาน' : 'ปิด'}
                       </span>
+                      
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => openEditModal(pkg)}
+                          className="p-1.5 text-gray-600 hover:text-primary-600 hover:bg-gray-100 rounded transition-colors"
+                          title="แก้ไข"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => setShowDeleteConfirm(pkg.id)}
+                          className="p-1.5 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                          title="ลบ"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
-                
-                {/* Package List */}
-                <div className="divide-y divide-gray-100">
-                  {group.packages.map((pkg) => (
-                    <div key={pkg.id} className="px-6 py-4 hover:bg-gray-50 transition-colors">
-                      <div className="flex items-center justify-between">
-                        {/* Left: Package Info */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-3">
-                            <h4 className="text-base font-medium text-gray-900 truncate">
-                              {pkg.name}
-                            </h4>
-                            {pkg.popular && (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700 flex-shrink-0">
-                                <Star className="w-3 h-3 mr-0.5" />
-                                ยอดนิยม
-                              </span>
-                            )}
-                            {pkg.recommended && (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700 flex-shrink-0">
-                                <Award className="w-3 h-3 mr-0.5" />
-                                แนะนำ
-                              </span>
-                            )}
-                          </div>
-                          
-                          {pkg.description && (
-                            <p className="text-sm text-gray-500 mt-1 truncate">{pkg.description}</p>
-                          )}
-                        </div>
-
-                        {/* Center: Credits & Price */}
-                        <div className="flex items-center gap-8 mx-6">
-                          {/* Credits */}
-                          <div className="text-center">
-                            <div className="text-2xl font-bold text-gray-900">
-                              {pkg.credits}
-                              {pkg.bonusCredits > 0 && (
-                                <span className="text-lg text-green-600 ml-1">+{pkg.bonusCredits}</span>
-                              )}
-                            </div>
-                            <div className="text-xs text-gray-500">ครั้ง</div>
-                          </div>
-                          
-                          {/* Price */}
-                          <div className="text-center">
-                            <div className="text-2xl font-bold text-primary-600">
-                              ฿{formatPrice(pkg.price)}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              (฿{formatPrice(Math.round(pkg.pricePerCredit))}/ครั้ง)
-                            </div>
-                          </div>
-                          
-                          {/* Validity */}
-                          <div className="flex items-center text-sm text-gray-500">
-                            <Clock className="w-4 h-4 mr-1" />
-                            <span>{pkg.validityDescription || 'ไม่มีกำหนด'}</span>
-                          </div>
-                        </div>
-
-                        {/* Right: Status & Actions */}
-                        <div className="flex items-center gap-3 flex-shrink-0">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            pkg.status === 'active' 
-                              ? 'bg-green-100 text-green-700' 
-                              : 'bg-gray-100 text-gray-700'
-                          }`}>
-                            {pkg.status === 'active' ? 'ใช้งาน' : 'ปิด'}
-                          </span>
-                          
-                          <div className="flex items-center gap-1">
-                            <button
-                              onClick={() => openEditModal(pkg)}
-                              className="p-1.5 text-gray-600 hover:text-primary-600 hover:bg-gray-100 rounded transition-colors"
-                              title="แก้ไข"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => setShowDeleteConfirm(pkg.id)}
-                              className="p-1.5 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                              title="ลบ"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         )}
 
@@ -401,20 +393,61 @@ const PackagesPage = () => {
                     {/* Course Selection */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        วิชา
+                        วิชาที่ใช้ได้
                       </label>
-                      <select
-                        className="input-base"
-                        value={editForm.courseId}
-                        onChange={(e) => setEditForm({ ...editForm, courseId: e.target.value })}
-                      >
-                        <option value="">เลือกวิชา</option>
-                        {courses.map(course => (
-                          <option key={course.id} value={course.id}>
-                            {course.name}
-                          </option>
-                        ))}
-                      </select>
+                      
+                      {/* Universal Option */}
+                      <div className="mb-3 p-3 bg-gray-50 rounded-lg">
+                        <label className="flex items-center cursor-pointer">
+                          <input
+                            type="radio"
+                            name="editCourseSelection"
+                            checked={editForm.isUniversal}
+                            onChange={(e) => setEditForm({ ...editForm, isUniversal: true, applicableCourseIds: [] })}
+                            className="w-4 h-4 text-primary-600"
+                          />
+                          <span className="ml-2 text-sm">ใช้ได้กับทุกวิชา</span>
+                        </label>
+                        <label className="flex items-center cursor-pointer mt-2">
+                          <input
+                            type="radio"
+                            name="editCourseSelection"
+                            checked={!editForm.isUniversal}
+                            onChange={(e) => setEditForm({ ...editForm, isUniversal: false })}
+                            className="w-4 h-4 text-primary-600"
+                          />
+                          <span className="ml-2 text-sm">เลือกวิชาที่ใช้ได้</span>
+                        </label>
+                      </div>
+                      
+                      {/* Course Checkboxes */}
+                      {!editForm.isUniversal && (
+                        <div className="space-y-2 max-h-40 overflow-y-auto border border-gray-200 rounded-md p-3">
+                          {courses.map(course => (
+                            <label key={course.id} className="flex items-center cursor-pointer hover:bg-gray-50 p-1 rounded">
+                              <input
+                                type="checkbox"
+                                checked={editForm.applicableCourseIds.includes(course.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setEditForm({ 
+                                      ...editForm, 
+                                      applicableCourseIds: [...editForm.applicableCourseIds, course.id] 
+                                    })
+                                  } else {
+                                    setEditForm({ 
+                                      ...editForm, 
+                                      applicableCourseIds: editForm.applicableCourseIds.filter(id => id !== course.id) 
+                                    })
+                                  }
+                                }}
+                                className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                              />
+                              <span className="ml-2 text-sm">{course.name} ({course.code})</span>
+                            </label>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     {/* Package Name */}

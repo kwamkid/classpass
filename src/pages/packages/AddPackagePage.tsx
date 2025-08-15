@@ -17,6 +17,7 @@ import { useAuthStore } from '../../stores/authStore'
 import { useOnboardingStore } from '../../stores/onboardingStore'
 import * as packageService from '../../services/package'
 import * as courseService from '../../services/course'
+import { CourseMultiSelect } from '../../components/features/courses/CourseMultiSelect'
 import toast from 'react-hot-toast'
 import Layout from '../../components/layout/Layout'
 
@@ -30,7 +31,8 @@ const AddPackagePage = () => {
   const [errors, setErrors] = useState<Record<string, string>>({})
   
   const [formData, setFormData] = useState({
-    courseId: '',
+    applicableCourseIds: [] as string[],
+    isUniversal: false,
     name: '',
     description: '',
     credits: 1,
@@ -62,11 +64,6 @@ const AddPackagePage = () => {
       // Load courses
       const coursesData = await courseService.getCourses(user.schoolId, 'active')
       setCourses(coursesData)
-      
-      // Auto-select first course if only one
-      if (coursesData.length === 1) {
-        setFormData(prev => ({ ...prev, courseId: coursesData[0].id }))
-      }
       
       // Check existing packages
       const packagesData = await packageService.getPackages(user.schoolId)
@@ -128,9 +125,11 @@ const AddPackagePage = () => {
   const validateForm = () => {
     const newErrors: Record<string, string> = {}
     
-    if (!formData.courseId) {
-      newErrors.courseId = 'กรุณาเลือกวิชา'
+    // ตรวจสอบว่าเลือกวิชาหรือเลือก universal
+    if (!formData.isUniversal && formData.applicableCourseIds.length === 0) {
+      newErrors.applicableCourseIds = 'กรุณาเลือกวิชาอย่างน้อย 1 วิชา หรือเลือกใช้ได้ทุกวิชา'
     }
+    
     if (!formData.name.trim()) {
       newErrors.name = 'กรุณากรอกชื่อแพ็คเกจ'
     }
@@ -165,7 +164,8 @@ const AddPackagePage = () => {
       setLoading(true)
       
       const packageData: packageService.CreatePackageData = {
-        courseId: formData.courseId,
+        applicableCourseIds: formData.applicableCourseIds,
+        isUniversal: formData.isUniversal,
         name: formData.name.trim(),
         description: formData.description.trim(),
         credits: formData.credits,
@@ -247,27 +247,23 @@ const AddPackagePage = () => {
               เลือกวิชา
             </h2>
             
-            <div>
-              <label className="block text-base font-medium text-gray-700 mb-2">
-                วิชาที่ใช้กับแพ็คเกจนี้ <span className="text-red-500">*</span>
-              </label>
-              <select
-                name="courseId"
-                value={formData.courseId}
-                onChange={handleChange}
-                className={`input-base text-base ${errors.courseId ? 'input-error' : ''}`}
-              >
-                <option value="">เลือกวิชา</option>
-                {courses.map(course => (
-                  <option key={course.id} value={course.id}>
-                    {course.name} ({course.code})
-                  </option>
-                ))}
-              </select>
-              {errors.courseId && (
-                <p className="mt-1 text-sm text-red-600">{errors.courseId}</p>
-              )}
-            </div>
+            <CourseMultiSelect
+              schoolId={user?.schoolId || ''}
+              selectedCourseIds={formData.applicableCourseIds}
+              isUniversal={formData.isUniversal}
+              onChange={(courseIds, isUniversal) => {
+                setFormData(prev => ({
+                  ...prev,
+                  applicableCourseIds: courseIds,
+                  isUniversal: isUniversal
+                }))
+                // Clear error
+                if (errors.applicableCourseIds) {
+                  setErrors(prev => ({ ...prev, applicableCourseIds: '' }))
+                }
+              }}
+              error={errors.applicableCourseIds}
+            />
           </div>
 
           {/* Package Details */}
@@ -488,7 +484,7 @@ const AddPackagePage = () => {
               <div className="text-base text-blue-700">
                 <p className="font-medium mb-2">หมายเหตุ:</p>
                 <ul className="list-disc list-inside space-y-1">
-                  <li>แพ็คเกจจะใช้ได้เฉพาะกับวิชาที่เลือกเท่านั้น</li>
+                  <li>แพ็คเกจสามารถใช้ได้กับวิชาที่เลือกเท่านั้น</li>
                   <li>นักเรียนสามารถซื้อแพ็คเกจได้หลายแพ็คเกจ</li>
                   <li>เครดิตจะถูกหักเมื่อเช็คชื่อเข้าเรียน</li>
                 </ul>
