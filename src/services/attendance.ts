@@ -1,19 +1,7 @@
 // src/services/attendance.ts
-import { 
-  collection, 
-  doc, 
-  getDocs, 
-  getDoc, 
-  addDoc, 
-  query, 
-  where, 
-  orderBy,
-  serverTimestamp,
-  runTransaction,
-  deleteDoc
-} from 'firebase/firestore'
-import { db } from './firebase'
-import * as studentCreditService from './studentCredit'
+import { supabase } from './supabase'
+import { dbAttendanceToAttendance } from '../types/database.types'
+import type { DbAttendance } from '../types/database.types'
 
 // Types
 export interface Attendance {
@@ -22,43 +10,43 @@ export interface Attendance {
   studentId: string
   courseId: string
   creditId: string
-  
+
   // Student & Course Info (Denormalized)
   studentCode: string
   studentName: string
   studentNickname?: string
   courseName: string
   courseCode?: string
-  
+
   // Check-in Information
   checkInDate: string
   checkInTime: string
   checkInMethod: 'manual' | 'qr_code' | 'face_recognition'
-  
+
   // Session Information
   sessionDate: string
   sessionStartTime?: string
   sessionEndTime?: string
   sessionRoom?: string
-  
+
   // Credit Deduction
   creditsDeducted: number
   creditsBefore: number
   creditsAfter: number
-  
+
   // Status
   status: 'present' | 'absent' | 'late' | 'excused' | 'holiday'
   isLate: boolean
   lateMinutes?: number
-  
+
   // Checker Information
   checkedBy: string
   checkedByName: string
   checkedByRole: string
-  
+
   // Notes
   teacherNotes?: string
-  
+
   // Timestamps
   createdAt: Date
   updatedAt?: Date
@@ -74,7 +62,7 @@ export interface CheckInData {
   teacherNotes?: string
 }
 
-// Check in a student
+// Check in a student (uses DB function for atomic transaction)
 export const checkInStudent = async (
   schoolId: string,
   userId: string,
@@ -83,116 +71,40 @@ export const checkInStudent = async (
   data: CheckInData
 ): Promise<Attendance> => {
   try {
-    return await runTransaction(db, async (transaction) => {
-      // Get student data
-      const studentRef = doc(db, 'students', data.studentId)
-      const studentDoc = await transaction.get(studentRef)
-      if (!studentDoc.exists()) {
-        throw new Error('Student not found')
-      }
-      const student = studentDoc.data()
-      
-      // Get course data
-      const courseRef = doc(db, 'courses', data.courseId)
-      const courseDoc = await transaction.get(courseRef)
-      if (!courseDoc.exists()) {
-        throw new Error('Course not found')
-      }
-      const course = courseDoc.data()
-      
-      // Get credit data
-      const creditRef = doc(db, 'student_credits', data.creditId)
-      const creditDoc = await transaction.get(creditRef)
-      if (!creditDoc.exists()) {
-        throw new Error('Credit not found')
-      }
-      const credit = creditDoc.data()
-      
-      // Validate credit
-      if (credit.status !== 'active') {
-        throw new Error('Credit is not active')
-      }
-      
-      if (credit.remainingCredits < 1) {
-        throw new Error('ไม่มีเครดิตเหลือ')
-      }
-      
-      // Check if expired
-      if (credit.hasExpiry && credit.expiryDate) {
-        const today = new Date().toISOString().split('T')[0]
-        if (credit.expiryDate < today) {
-          throw new Error('เครดิตหมดอายุแล้ว')
-        }
-      }
-      
-      // Create attendance record
-      const now = new Date()
-      const today = now.toISOString().split('T')[0]
-      const attendanceData = {
-        schoolId,
-        studentId: data.studentId,
-        courseId: data.courseId,
-        creditId: data.creditId,
-        
-        // Student & Course Info
-        studentCode: student.studentCode,
-        studentName: `${student.firstName} ${student.lastName}`,
-        studentNickname: student.nickname || '',
-        courseName: course.name,
-        courseCode: course.code || '',
-        
-        // Check-in Information
-        checkInDate: today,
-        checkInTime: now.toISOString(),
-        checkInMethod: data.checkInMethod || 'manual',
-        
-        // Session Information
-        sessionDate: today,
-        
-        // Credit Deduction
-        creditsDeducted: 1,
-        creditsBefore: credit.remainingCredits,
-        creditsAfter: credit.remainingCredits - 1,
-        
-        // Status
-        status: 'present' as const,
-        isLate: data.isLate || false,
-        lateMinutes: data.lateMinutes || 0,
-        
-        // Checker Information
-        checkedBy: userId,
-        checkedByName: userName,
-        checkedByRole: userRole,
-        
-        // Timestamps
-        createdAt: serverTimestamp()
-      }
-      
-      // Only add teacherNotes if it exists
-      if (data.teacherNotes) {
-        (attendanceData as any).teacherNotes = data.teacherNotes
-      }
-      
-      // Create attendance document
-      const attendanceRef = doc(collection(db, 'attendance'))
-      transaction.set(attendanceRef, attendanceData)
-      
-      // Update credit balance
-      transaction.update(creditRef, {
-        usedCredits: credit.usedCredits + 1,
-        remainingCredits: credit.remainingCredits - 1,
-        lastUsedDate: today,
-        status: credit.remainingCredits - 1 === 0 ? 'depleted' : credit.status,
-        updatedAt: serverTimestamp()
-      })
-      
-      // Return created attendance
-      return {
-        id: attendanceRef.id,
-        ...attendanceData,
-        createdAt: new Date()
-      } as Attendance
+    const today = new Date().toISOString().split('T')[0]
+
+    const { data: attendanceId, error } = await supabase.rpc('check_in_student', {
+      p_school_id: schoolId,
+      p_student_id: data.studentId,
+      p_course_id: data.courseId,
+      p_credit_id: data.creditId,
+      p_checked_by: userId,
+      p_checked_by_name: userName,
+      p_checked_by_role: userRole,
+      p_check_in_date: today,
+      p_check_in_method: data.checkInMethod || 'manual',
+      p_is_late: data.isLate || false,
+      p_late_minutes: data.lateMinutes || 0,
+      p_teacher_notes: data.teacherNotes || null,
     })
+
+    if (error) {
+      console.error('Error checking in student:', error)
+      throw new Error(error.message || 'เกิดข้อผิดพลาดในการเช็คชื่อ')
+    }
+
+    // Fetch the created attendance record
+    const { data: record, error: fetchError } = await supabase
+      .from('attendance')
+      .select('*')
+      .eq('id', attendanceId)
+      .single()
+
+    if (fetchError || !record) {
+      throw new Error('เช็คชื่อสำเร็จ แต่ไม่สามารถโหลดข้อมูลได้')
+    }
+
+    return dbAttendanceToAttendance(record as DbAttendance) as Attendance
   } catch (error: any) {
     console.error('Error checking in student:', error)
     throw new Error(error.message || 'เกิดข้อผิดพลาดในการเช็คชื่อ')
@@ -206,117 +118,41 @@ export const checkInStudentWithDate = async (
   userName: string,
   userRole: string,
   data: CheckInData,
-  checkInDate: string // วันที่ที่ต้องการเช็คชื่อ
+  checkInDate: string
 ): Promise<Attendance> => {
   try {
-    return await runTransaction(db, async (transaction) => {
-      // Get student data
-      const studentRef = doc(db, 'students', data.studentId)
-      const studentDoc = await transaction.get(studentRef)
-      if (!studentDoc.exists()) {
-        throw new Error('Student not found')
-      }
-      const student = studentDoc.data()
-      
-      // Get course data
-      const courseRef = doc(db, 'courses', data.courseId)
-      const courseDoc = await transaction.get(courseRef)
-      if (!courseDoc.exists()) {
-        throw new Error('Course not found')
-      }
-      const course = courseDoc.data()
-      
-      // Get credit data
-      const creditRef = doc(db, 'student_credits', data.creditId)
-      const creditDoc = await transaction.get(creditRef)
-      if (!creditDoc.exists()) {
-        throw new Error('Credit not found')
-      }
-      const credit = creditDoc.data()
-      
-      // Validate credit
-      if (credit.status !== 'active') {
-        throw new Error('Credit is not active')
-      }
-      
-      if (credit.remainingCredits < 1) {
-        throw new Error('ไม่มีเครดิตเหลือ')
-      }
-      
-      // Check if expired
-      if (credit.hasExpiry && credit.expiryDate) {
-        if (credit.expiryDate < checkInDate) {
-          throw new Error('เครดิตหมดอายุแล้ว')
-        }
-      }
-      
-      // Create attendance record
-      const now = new Date()
-      const attendanceData = {
-        schoolId,
-        studentId: data.studentId,
-        courseId: data.courseId,
-        creditId: data.creditId,
-        
-        // Student & Course Info
-        studentCode: student.studentCode,
-        studentName: `${student.firstName} ${student.lastName}`,
-        studentNickname: student.nickname || '',
-        courseName: course.name,
-        courseCode: course.code || '',
-        
-        // Check-in Information - ใช้วันที่ที่ส่งมา
-        checkInDate: checkInDate,
-        checkInTime: now.toISOString(),
-        checkInMethod: data.checkInMethod || 'manual',
-        
-        // Session Information
-        sessionDate: checkInDate,
-        
-        // Credit Deduction
-        creditsDeducted: 1,
-        creditsBefore: credit.remainingCredits,
-        creditsAfter: credit.remainingCredits - 1,
-        
-        // Status
-        status: 'present' as const,
-        isLate: data.isLate || false,
-        lateMinutes: data.lateMinutes || 0,
-        
-        // Checker Information
-        checkedBy: userId,
-        checkedByName: userName,
-        checkedByRole: userRole,
-        
-        // Timestamps
-        createdAt: serverTimestamp()
-      }
-      
-      // Only add teacherNotes if it exists
-      if (data.teacherNotes) {
-        (attendanceData as any).teacherNotes = data.teacherNotes
-      }
-      
-      // Create attendance document
-      const attendanceRef = doc(collection(db, 'attendance'))
-      transaction.set(attendanceRef, attendanceData)
-      
-      // Update credit balance
-      transaction.update(creditRef, {
-        usedCredits: credit.usedCredits + 1,
-        remainingCredits: credit.remainingCredits - 1,
-        lastUsedDate: checkInDate,
-        status: credit.remainingCredits - 1 === 0 ? 'depleted' : credit.status,
-        updatedAt: serverTimestamp()
-      })
-      
-      // Return created attendance
-      return {
-        id: attendanceRef.id,
-        ...attendanceData,
-        createdAt: new Date()
-      } as Attendance
+    const { data: attendanceId, error } = await supabase.rpc('check_in_student', {
+      p_school_id: schoolId,
+      p_student_id: data.studentId,
+      p_course_id: data.courseId,
+      p_credit_id: data.creditId,
+      p_checked_by: userId,
+      p_checked_by_name: userName,
+      p_checked_by_role: userRole,
+      p_check_in_date: checkInDate,
+      p_check_in_method: data.checkInMethod || 'manual',
+      p_is_late: data.isLate || false,
+      p_late_minutes: data.lateMinutes || 0,
+      p_teacher_notes: data.teacherNotes || null,
     })
+
+    if (error) {
+      console.error('Error checking in student with date:', error)
+      throw new Error(error.message || 'เกิดข้อผิดพลาดในการเช็คชื่อ')
+    }
+
+    // Fetch the created attendance record
+    const { data: record, error: fetchError } = await supabase
+      .from('attendance')
+      .select('*')
+      .eq('id', attendanceId)
+      .single()
+
+    if (fetchError || !record) {
+      throw new Error('เช็คชื่อสำเร็จ แต่ไม่สามารถโหลดข้อมูลได้')
+    }
+
+    return dbAttendanceToAttendance(record as DbAttendance) as Attendance
   } catch (error: any) {
     console.error('Error checking in student with date:', error)
     throw new Error(error.message || 'เกิดข้อผิดพลาดในการเช็คชื่อ')
@@ -330,32 +166,50 @@ export const getTodayAttendance = async (
 ): Promise<Attendance[]> => {
   try {
     const today = new Date().toISOString().split('T')[0]
-    
-    const attendanceRef = collection(db, 'attendance')
-    const q = query(
-      attendanceRef,
-      where('schoolId', '==', schoolId),
-      where('courseId', '==', courseId),
-      where('checkInDate', '==', today),
-      orderBy('checkInTime', 'desc')
-    )
-    
-    const snapshot = await getDocs(q)
-    
-    const attendances: Attendance[] = []
-    snapshot.docs.forEach(doc => {
-      const data = doc.data() as any
-      attendances.push({
-        id: doc.id,
-        ...data,
-        createdAt: data.createdAt?.toDate() || new Date(),
-        updatedAt: data.updatedAt?.toDate()
-      })
-    })
-    
-    return attendances
+
+    const { data, error } = await supabase
+      .from('attendance')
+      .select('*')
+      .eq('school_id', schoolId)
+      .eq('course_id', courseId)
+      .eq('check_in_date', today)
+      .order('check_in_time', { ascending: false })
+
+    if (error) {
+      console.error('Error getting today attendance:', error)
+      return []
+    }
+
+    return (data || []).map(row => dbAttendanceToAttendance(row as DbAttendance) as Attendance)
   } catch (error) {
     console.error('Error getting today attendance:', error)
+    return []
+  }
+}
+
+// Get attendance for a specific date and course
+export const getAttendanceByDateAndCourse = async (
+  schoolId: string,
+  courseId: string,
+  date: string
+): Promise<Attendance[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('attendance')
+      .select('*')
+      .eq('school_id', schoolId)
+      .eq('course_id', courseId)
+      .eq('check_in_date', date)
+      .order('check_in_time', { ascending: false })
+
+    if (error) {
+      console.error('Error getting attendance by date and course:', error)
+      return []
+    }
+
+    return (data || []).map(row => dbAttendanceToAttendance(row as DbAttendance) as Attendance)
+  } catch (error) {
+    console.error('Error getting attendance by date and course:', error)
     return []
   }
 }
@@ -372,61 +226,39 @@ export const getAttendanceHistory = async (
 ): Promise<Attendance[]> => {
   try {
     console.log('Getting attendance history with filters:', { schoolId, ...filters })
-    
-    const attendanceRef = collection(db, 'attendance')
-    let conditions = [where('schoolId', '==', schoolId)]
-    
+
+    let query = supabase
+      .from('attendance')
+      .select('*')
+      .eq('school_id', schoolId)
+
     if (filters?.studentId) {
-      conditions.push(where('studentId', '==', filters.studentId))
+      query = query.eq('student_id', filters.studentId)
     }
-    
+
     if (filters?.courseId) {
-      conditions.push(where('courseId', '==', filters.courseId))
+      query = query.eq('course_id', filters.courseId)
     }
-    
-    // Simple query without orderBy to avoid index requirement
-    const q = query(
-      attendanceRef,
-      ...conditions
-    )
-    
-    const snapshot = await getDocs(q)
-    console.log(`Found ${snapshot.size} attendance records`)
-    
-    let attendances: Attendance[] = []
-    snapshot.docs.forEach(doc => {
-      const data = doc.data() as any
-      console.log('Attendance record:', { 
-        id: doc.id, 
-        studentId: data.studentId, 
-        checkInDate: data.checkInDate 
-      })
-      
-      attendances.push({
-        id: doc.id,
-        ...data,
-        createdAt: data.createdAt?.toDate() || new Date(),
-        updatedAt: data.updatedAt?.toDate()
-      })
-    })
-    
-    // Filter by date on client side
+
     if (filters?.startDate) {
-      attendances = attendances.filter(a => a.checkInDate >= filters.startDate!)
+      query = query.gte('check_in_date', filters.startDate)
     }
+
     if (filters?.endDate) {
-      attendances = attendances.filter(a => a.checkInDate <= filters.endDate!)
+      query = query.lte('check_in_date', filters.endDate)
     }
-    
-    // Sort by checkInDate desc on client side
-    attendances.sort((a, b) => {
-      const dateA = new Date(a.checkInDate).getTime()
-      const dateB = new Date(b.checkInDate).getTime()
-      return dateB - dateA // desc order
-    })
-    
-    console.log(`Returning ${attendances.length} attendance records after filtering`)
-    
+
+    query = query.order('check_in_date', { ascending: false })
+
+    const { data, error } = await query
+
+    if (error) {
+      console.error('Error getting attendance history:', error)
+      return []
+    }
+
+    const attendances = (data || []).map(row => dbAttendanceToAttendance(row as DbAttendance) as Attendance)
+    console.log(`Returning ${attendances.length} attendance records`)
     return attendances
   } catch (error) {
     console.error('Error getting attendance history:', error)
@@ -434,44 +266,20 @@ export const getAttendanceHistory = async (
   }
 }
 
-// Cancel attendance (undo check-in) - ลบ record และคืนเครดิต
+// Cancel attendance (undo check-in) - uses DB function for atomic transaction
 export const cancelAttendance = async (
   attendanceId: string,
   reason: string
 ): Promise<void> => {
   try {
-    await runTransaction(db, async (transaction) => {
-      // Get attendance record
-      const attendanceRef = doc(db, 'attendance', attendanceId)
-      const attendanceDoc = await transaction.get(attendanceRef)
-      
-      if (!attendanceDoc.exists()) {
-        throw new Error('ไม่พบข้อมูลการเช็คชื่อ')
-      }
-      
-      const attendance = attendanceDoc.data()
-      
-      // Get credit record
-      const creditRef = doc(db, 'student_credits', attendance.creditId)
-      const creditDoc = await transaction.get(creditRef)
-      
-      if (!creditDoc.exists()) {
-        throw new Error('ไม่พบข้อมูลเครดิต')
-      }
-      
-      const credit = creditDoc.data()
-      
-      // Delete attendance record (ลบทิ้งเลย ไม่เก็บ status)
-      transaction.delete(attendanceRef)
-      
-      // Refund credit (คืนเครดิต)
-      transaction.update(creditRef, {
-        usedCredits: Math.max(0, credit.usedCredits - attendance.creditsDeducted),
-        remainingCredits: credit.remainingCredits + attendance.creditsDeducted,
-        status: credit.remainingCredits + attendance.creditsDeducted > 0 ? 'active' : credit.status,
-        updatedAt: serverTimestamp()
-      })
+    const { error } = await supabase.rpc('cancel_attendance', {
+      p_attendance_id: attendanceId,
     })
+
+    if (error) {
+      console.error('Error cancelling attendance:', error)
+      throw new Error(error.message || 'เกิดข้อผิดพลาดในการยกเลิกการเช็คชื่อ')
+    }
   } catch (error: any) {
     console.error('Error cancelling attendance:', error)
     throw new Error(error.message || 'เกิดข้อผิดพลาดในการยกเลิกการเช็คชื่อ')

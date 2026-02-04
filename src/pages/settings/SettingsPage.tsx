@@ -20,8 +20,7 @@ import { useOnboardingStore } from '../../stores/onboardingStore'
 import { useOnboardingComplete } from '../../hooks/useOnboardingComplete'
 import UserAvatar from '../../components/common/UserAvatar'
 import * as schoolService from '../../services/school'
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
-import { storage } from '../../services/firebase'
+import * as storageService from '../../services/storage'
 import toast from 'react-hot-toast'
 import Layout from '../../components/layout/Layout'
 
@@ -71,11 +70,9 @@ const SettingsPage = () => {
     try {
       setUploadingLogo(true)
       
-      // Upload to Firebase Storage
-      const logoRef = ref(storage, `schools/${school.id}/logo.jpg`)
-      const snapshot = await uploadBytes(logoRef, file)
-      const downloadURL = await getDownloadURL(snapshot.ref)
-      
+      // Upload to Supabase Storage
+      const downloadURL = await storageService.uploadSchoolLogo(school.id, file)
+
       // Update school document
       await schoolService.updateSchool(school.id, { logo: downloadURL })
       

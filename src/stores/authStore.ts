@@ -117,7 +117,7 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true })
         try {
           const user = await authService.getCurrentUser()
-          console.log('👤 Current user from Firebase:', user)
+          console.log('Current user:', user)
           
           set({ 
             user: user as User | null, 

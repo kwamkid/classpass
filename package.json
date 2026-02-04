@@ -9,7 +9,6 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "migrate:multi-course": "tsx src/scripts/migratePackagesToMultiCourse.ts"
-
   },
   "dependencies": {
     "@fontsource/ibm-plex-sans-thai": "^5.2.6",
@@ -17,9 +16,9 @@
     "@radix-ui/react-avatar": "^1.1.10",
     "@radix-ui/react-dialog": "^1.1.14",
     "@radix-ui/react-select": "^2.2.5",
+    "@supabase/supabase-js": "^2.94.0",
     "axios": "^1.11.0",
     "clsx": "^2.1.1",
-    "firebase": "^12.0.0",
     "lucide-react": "^0.534.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

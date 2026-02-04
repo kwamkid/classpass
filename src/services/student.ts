@@ -1,18 +1,7 @@
 // src/services/student.ts
-import { 
-  collection, 
-  doc, 
-  getDocs, 
-  getDoc, 
-  addDoc, 
-  updateDoc, 
-  query, 
-  where, 
-  orderBy, 
-  limit,
-  serverTimestamp
-} from 'firebase/firestore'
-import { db } from './firebase'
+import supabase from './supabase'
+import { dbStudentToStudent } from '../types/database.types'
+import type { DbStudent } from '../types/database.types'
 
 // Types
 export interface Student {
@@ -74,23 +63,22 @@ export interface CreateStudentData {
 
 const calculateAge = (birthDate?: string): number | undefined => {
   if (!birthDate) return undefined
-  
+
   try {
     const today = new Date()
     const birth = new Date(birthDate)
-    
-    // ตรวจสอบว่าวันที่ valid หรือไม่
+
     if (isNaN(birth.getTime())) {
       return undefined
     }
-    
+
     let age = today.getFullYear() - birth.getFullYear()
     const monthDiff = today.getMonth() - birth.getMonth()
-    
+
     if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
       age--
     }
-    
+
     return age
   } catch (error) {
     console.error('Error calculating age:', error)
@@ -98,91 +86,28 @@ const calculateAge = (birthDate?: string): number | undefined => {
   }
 }
 
-// Generate student code
-const generateStudentCode = async (schoolId: string): Promise<string> => {
-  const year = new Date().getFullYear()
-  
-  // Get the latest student code
-  const studentsRef = collection(db, 'students')
-  const q = query(
-    studentsRef,
-    where('schoolId', '==', schoolId),
-    orderBy('studentCode', 'desc'),
-    limit(1)
-  )
-  
-  const snapshot = await getDocs(q)
-  let nextNumber = 1
-  
-  if (!snapshot.empty) {
-    const lastCode = snapshot.docs[0].data().studentCode
-    const lastNumber = parseInt(lastCode.slice(-3))
-    if (!isNaN(lastNumber)) {
-      nextNumber = lastNumber + 1
-    }
-  }
-  
-  return `STD${year}${nextNumber.toString().padStart(3, '0')}`
-}
-
 // Get all students for a school
 export const getStudents = async (schoolId: string, status?: string): Promise<Student[]> => {
   try {
-    const studentsRef = collection(db, 'students')
-    let q
-    
-    // Simple query without compound index requirement
+    let query = supabase
+      .from('students')
+      .select('*')
+      .eq('school_id', schoolId)
+      .eq('is_deleted', false)
+      .order('created_at', { ascending: false })
+
     if (status) {
-      q = query(
-        studentsRef,
-        where('schoolId', '==', schoolId),
-        where('status', '==', status),
-        orderBy('createdAt', 'desc')
-      )
-    } else {
-      q = query(
-        studentsRef,
-        where('schoolId', '==', schoolId),
-        orderBy('createdAt', 'desc')
-      )
+      query = query.eq('status', status)
     }
-    
-    const snapshot = await getDocs(q)
-    
-    // Filter out deleted students on client side
-    const students: Student[] = []
-    snapshot.docs.forEach(doc => {
-      const data = doc.data() as any
-      const student: Student = {
-        id: doc.id,
-        schoolId: data.schoolId,
-        studentCode: data.studentCode,
-        firstName: data.firstName,
-        lastName: data.lastName,
-        nickname: data.nickname,
-        birthDate: data.birthDate,
-        age: data.age,
-        gender: data.gender,
-        currentGrade: data.currentGrade,
-        profileImage: data.profileImage,
-        phone: data.phone,
-        email: data.email,
-        status: data.status,
-        isActive: data.isActive,
-        isDeleted: data.isDeleted,
-        parents: data.parents,
-        address: data.address,
-        createdAt: data.createdAt?.toDate() || new Date(),
-        updatedAt: data.updatedAt?.toDate() || new Date()
-      }
-      
-      // Only include if not deleted
-      if (!student.isDeleted) {
-        students.push(student)
-      }
-    })
-    
-    return students
+
+    const { data, error } = await query
+
+    if (error) {
+      console.error('Error getting students:', error)
+      return []
+    }
+
+    return (data || []).map((row: DbStudent) => dbStudentToStudent(row) as unknown as Student)
   } catch (error) {
     console.error('Error getting students:', error)
     return []
@@ -192,35 +117,18 @@ export const getStudents = async (schoolId: string, status?: string): Promise<St
 // Get single student
 export const getStudent = async (studentId: string): Promise<Student | null> => {
   try {
-    const studentDoc = await getDoc(doc(db, 'students', studentId))
-    
-    if (studentDoc.exists()) {
-      const data = studentDoc.data() as any
-      return {
-        id: studentDoc.id,
-        schoolId: data.schoolId,
-        studentCode: data.studentCode,
-        firstName: data.firstName,
-        lastName: data.lastName,
-        nickname: data.nickname,
-        birthDate: data.birthDate,
-        age: data.age,
-        gender: data.gender,
-        currentGrade: data.currentGrade,
-        profileImage: data.profileImage,
-        phone: data.phone,
-        email: data.email,
-        status: data.status,
-        isActive: data.isActive,
-        isDeleted: data.isDeleted,
-        parents: data.parents,
-        address: data.address,
-        createdAt: data.createdAt?.toDate() || new Date(),
-        updatedAt: data.updatedAt?.toDate() || new Date()
-      }
+    const { data, error } = await supabase
+      .from('students')
+      .select('*')
+      .eq('id', studentId)
+      .single()
+
+    if (error || !data) {
+      console.error('Error getting student:', error)
+      return null
     }
-    
-    return null
+
+    return dbStudentToStudent(data as DbStudent) as unknown as Student
   } catch (error) {
     console.error('Error getting student:', error)
     return null
@@ -228,60 +136,68 @@ export const getStudent = async (studentId: string): Promise<Student | null> => 
 }
 
 // Create new student
-// แก้ไขฟังก์ชัน createStudent
 export const createStudent = async (
-  schoolId: string, 
+  schoolId: string,
   data: CreateStudentData
 ): Promise<Student> => {
   try {
-    // Generate student code
-    const studentCode = await generateStudentCode(schoolId)
-    
-    // Calculate age - ถ้าไม่มีวันเกิดจะไม่ใส่ field age เลย
+    // Generate student code via RPC
+    const { data: studentCode, error: rpcError } = await supabase.rpc('generate_student_code', {
+      p_school_id: schoolId
+    })
+
+    if (rpcError) {
+      console.error('Error generating student code:', rpcError)
+      throw rpcError
+    }
+
+    // Calculate age
     const age = data.birthDate ? calculateAge(data.birthDate) : null
-    
-    // Prepare student data
-    const studentData: any = {
-      schoolId,
-      studentCode,
-      firstName: data.firstName,
-      lastName: data.lastName,
+
+    // Prepare parents array
+    const parents = data.parentName
+      ? [{
+          type: 'mother' as const,
+          firstName: data.parentName.split(' ')[0] || '',
+          lastName: data.parentName.split(' ').slice(1).join(' ') || '',
+          phone: data.parentPhone || '',
+          email: data.parentEmail || '',
+          isPrimaryContact: true
+        }]
+      : []
+
+    // Prepare insert data (snake_case for DB)
+    const insertData = {
+      school_id: schoolId,
+      student_code: studentCode,
+      first_name: data.firstName,
+      last_name: data.lastName,
       nickname: data.nickname || '',
-      birthDate: data.birthDate || '',
+      birth_date: data.birthDate || '',
+      age: age ?? null,
       gender: data.gender,
-      currentGrade: data.currentGrade,
+      current_grade: data.currentGrade,
       phone: data.phone || '',
       email: data.email || '',
+      parents,
+      enrolled_courses: [],
       status: 'active' as const,
-      isActive: true,
-      isDeleted: false,
-      parents: data.parentName ? [{
-        type: 'mother' as const,
-        firstName: data.parentName.split(' ')[0] || '',
-        lastName: data.parentName.split(' ').slice(1).join(' ') || '',
-        phone: data.parentPhone || '',
-        email: data.parentEmail || '',
-        isPrimaryContact: true
-      }] : [],
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
+      is_active: true,
+      is_deleted: false,
     }
-    
-    // เพิ่ม age เฉพาะเมื่อมีค่า (ไม่ใช่ null หรือ undefined)
-    if (age !== null && age !== undefined) {
-      studentData.age = age
+
+    const { data: created, error } = await supabase
+      .from('students')
+      .insert(insertData)
+      .select()
+      .single()
+
+    if (error || !created) {
+      console.error('Error creating student:', error)
+      throw error || new Error('Failed to create student')
     }
-    
-    // Create student document
-    const docRef = await addDoc(collection(db, 'students'), studentData)
-    
-    // Return created student
-    return {
-      id: docRef.id,
-      ...studentData,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    } as Student
+
+    return dbStudentToStudent(created as DbStudent) as unknown as Student
   } catch (error) {
     console.error('Error creating student:', error)
     throw error
@@ -289,52 +205,44 @@ export const createStudent = async (
 }
 
 // Update student
-// แก้ไขฟังก์ชัน updateStudent ให้สมบูรณ์
 export const updateStudent = async (
   studentId: string,
   data: Partial<Student>
 ): Promise<void> => {
   try {
-    // สร้าง updateData object ใหม่
-    const updateData: any = {
-      updatedAt: serverTimestamp()
-    }
-    
-    // Copy only defined values from data
-    Object.keys(data).forEach(key => {
-      const value = (data as any)[key]
-      // ข้ามค่า undefined และ field ที่ไม่ควรอัพเดท
-      if (value !== undefined && 
-          key !== 'id' && 
-          key !== 'schoolId' && 
-          key !== 'studentCode' && 
-          key !== 'createdAt' &&
-          key !== 'updatedAt') {
-        updateData[key] = value
-      }
-    })
-    
-    // Handle age field specially
+    // Build snake_case update object
+    const updateData: Record<string, any> = {}
+
+    if (data.firstName !== undefined) updateData.first_name = data.firstName
+    if (data.lastName !== undefined) updateData.last_name = data.lastName
+    if (data.nickname !== undefined) updateData.nickname = data.nickname
+    if (data.gender !== undefined) updateData.gender = data.gender
+    if (data.currentGrade !== undefined) updateData.current_grade = data.currentGrade
+    if (data.profileImage !== undefined) updateData.profile_image = data.profileImage
+    if (data.phone !== undefined) updateData.phone = data.phone
+    if (data.email !== undefined) updateData.email = data.email
+    if (data.status !== undefined) updateData.status = data.status
+    if (data.isActive !== undefined) updateData.is_active = data.isActive
+    if (data.parents !== undefined) updateData.parents = data.parents
+    if (data.address !== undefined) updateData.address = data.address
+    if (data.enrolledCourses !== undefined) updateData.enrolled_courses = data.enrolledCourses
+
+    // Handle birthDate and age recalculation
     if ('birthDate' in data) {
       if (data.birthDate && data.birthDate !== '') {
-        // คำนวณอายุถ้ามีวันเกิด
+        updateData.birth_date = data.birthDate
         const age = calculateAge(data.birthDate)
-        if (age !== null && age !== undefined) {
-          updateData.age = age
-        } else {
-          // ถ้าคำนวณไม่ได้ให้ set เป็น null (ไม่ใช่ undefined)
-          updateData.age = null
-        }
+        updateData.age = age ?? null
       } else {
-        // ถ้าไม่มีวันเกิด ให้ set age เป็น null
+        updateData.birth_date = ''
         updateData.age = null
       }
     }
-    
-    // Handle parents array - make sure no undefined values
+
+    // Clean parents array - remove undefined values
     if (updateData.parents && Array.isArray(updateData.parents)) {
       updateData.parents = updateData.parents.map((parent: any) => {
-        const cleanParent: any = {}
+        const cleanParent: Record<string, any> = {}
         Object.keys(parent).forEach(key => {
           if (parent[key] !== undefined) {
             cleanParent[key] = parent[key] === '' ? '' : parent[key]
@@ -343,10 +251,10 @@ export const updateStudent = async (
         return cleanParent
       })
     }
-    
-    // Handle address object - make sure no undefined values
+
+    // Clean address object - remove undefined values
     if (updateData.address && typeof updateData.address === 'object') {
-      const cleanAddress: any = {}
+      const cleanAddress: Record<string, any> = {}
       Object.keys(updateData.address).forEach(key => {
         const value = updateData.address[key]
         if (value !== undefined) {
@@ -355,20 +263,41 @@ export const updateStudent = async (
       })
       updateData.address = cleanAddress
     }
-    
-    // Final cleanup - remove any remaining undefined values
-    const cleanData: any = {}
-    Object.keys(updateData).forEach(key => {
-      if (updateData[key] !== undefined) {
-        cleanData[key] = updateData[key]
-      }
-    })
-    
-    console.log('Updating student with clean data:', cleanData)
-    
-    await updateDoc(doc(db, 'students', studentId), cleanData)
+
+    const { error } = await supabase
+      .from('students')
+      .update(updateData)
+      .eq('id', studentId)
+
+    if (error) {
+      console.error('Error updating student:', error)
+      throw error
+    }
   } catch (error) {
     console.error('Error updating student:', error)
+    throw error
+  }
+}
+
+// Soft delete student
+export const deleteStudent = async (studentId: string): Promise<void> => {
+  try {
+    const { error } = await supabase
+      .from('students')
+      .update({
+        status: 'inactive',
+        is_active: false,
+        is_deleted: true,
+        deleted_at: new Date().toISOString(),
+      })
+      .eq('id', studentId)
+
+    if (error) {
+      console.error('Error deleting student:', error)
+      throw error
+    }
+  } catch (error) {
+    console.error('Error deleting student:', error)
     throw error
   }
 }
@@ -379,36 +308,24 @@ export const searchStudents = async (
   searchTerm: string
 ): Promise<Student[]> => {
   try {
-    // In a real app, you'd use a search service like Algolia
-    // For now, we'll get all students and filter client-side
-    const allStudents = await getStudents(schoolId)
-    
-    const lowerSearch = searchTerm.toLowerCase()
-    
-    return allStudents.filter(student => 
-      student.firstName.toLowerCase().includes(lowerSearch) ||
-      student.lastName.toLowerCase().includes(lowerSearch) ||
-      student.nickname?.toLowerCase().includes(lowerSearch) ||
-      student.studentCode.toLowerCase().includes(lowerSearch)
-    )
+    const pattern = `%${searchTerm}%`
+
+    const { data, error } = await supabase
+      .from('students')
+      .select('*')
+      .eq('school_id', schoolId)
+      .eq('is_deleted', false)
+      .or(`first_name.ilike.${pattern},last_name.ilike.${pattern},nickname.ilike.${pattern},student_code.ilike.${pattern}`)
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('Error searching students:', error)
+      return []
+    }
+
+    return (data || []).map((row: DbStudent) => dbStudentToStudent(row) as unknown as Student)
   } catch (error) {
     console.error('Error searching students:', error)
     return []
-  }
-}
-
-// Soft delete student
-export const deleteStudent = async (studentId: string): Promise<void> => {
-  try {
-    await updateDoc(doc(db, 'students', studentId), {
-      status: 'inactive',
-      isActive: false,
-      isDeleted: true,
-      deletedAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    })
-  } catch (error) {
-    console.error('Error deleting student:', error)
-    throw error
   }
 }

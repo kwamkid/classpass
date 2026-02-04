@@ -21,8 +21,6 @@ import * as studentService from '../../services/student'
 import * as courseService from '../../services/course'
 import * as studentCreditService from '../../services/studentCredit'
 import * as attendanceService from '../../services/attendance'
-import { collection, getDocs, query, where } from 'firebase/firestore'
-import { db } from '../../services/firebase'
 import toast from 'react-hot-toast'
 import Layout from '../../components/layout/Layout'
 
@@ -104,30 +102,15 @@ const AttendancePage = () => {
 
   const loadSelectedDateAttendance = async () => {
     if (!user?.schoolId || !selectedCourse) return
-    
+
     try {
-      // Get attendance for selected date
-      const attendanceRef = collection(db, 'attendance')
-      const q = query(
-        attendanceRef,
-        where('schoolId', '==', user.schoolId),
-        where('courseId', '==', selectedCourse.id),
-        where('checkInDate', '==', selectedDate)
+      // Get attendance for selected date using service
+      const attendances = await attendanceService.getAttendanceByDateAndCourse(
+        user.schoolId,
+        selectedCourse.id,
+        selectedDate
       )
-      
-      const snapshot = await getDocs(q)
-      const attendances: attendanceService.Attendance[] = []
-      
-      snapshot.docs.forEach(doc => {
-        const data = doc.data() as any
-        attendances.push({
-          id: doc.id,
-          ...data,
-          createdAt: data.createdAt?.toDate() || new Date(),
-          updatedAt: data.updatedAt?.toDate()
-        })
-      })
-      
+
       setSelectedDateAttendance(attendances)
       
       // Update stats to reflect only students with credits

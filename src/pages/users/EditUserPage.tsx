@@ -74,7 +74,7 @@ const EditUserPage = () => {
         reset({
           firstName: fetchedUser.firstName,
           lastName: fetchedUser.lastName,
-          role: fetchedUser.role,
+          role: fetchedUser.role as 'owner' | 'admin' | 'teacher',
           phone: fetchedUser.phone || '',
           isActive: fetchedUser.isActive
         })

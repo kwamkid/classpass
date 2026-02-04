@@ -208,7 +208,9 @@ const ReceiptPage = () => {
                 <tr className="border-b border-gray-100">
                   <td className="py-4">
                     <p className="font-medium">{credit.packageName}</p>
-                    <p className="text-sm text-gray-600">วิชา: {credit.courseName}</p>
+                    <p className="text-sm text-gray-600">
+                      วิชา: {credit.courseName || credit.applicableCourseNames?.[0] || 'ไม่ระบุวิชา'}
+                    </p>
                     {credit.expiryDate && (
                       <p className="text-sm text-gray-600">
                         ใช้ได้ถึง: {formatDate(credit.expiryDate)}

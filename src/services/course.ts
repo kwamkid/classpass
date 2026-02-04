@@ -1,18 +1,7 @@
 // src/services/course.ts
-import { 
-  collection, 
-  doc, 
-  getDocs, 
-  getDoc, 
-  addDoc, 
-  updateDoc, 
-  query, 
-  where, 
-  orderBy,
-  serverTimestamp,
-  Timestamp
-} from 'firebase/firestore'
-import { db } from './firebase'
+import supabase from './supabase'
+import { dbCourseToCourse } from '../types/database.types'
+import type { DbCourse } from '../types/database.types'
 
 // Types
 export interface Course {
@@ -23,9 +12,14 @@ export interface Course {
   category: 'academic' | 'sport' | 'art' | 'language' | 'other'
   description?: string
   coverImage?: string
+  schedule?: Record<string, any>
+  primaryTeacherId?: string
+  assistantTeacherIds?: string[]
+  maxStudentsPerClass?: number
+  defaultCreditsPerSession?: number
   status: 'active' | 'inactive' | 'archived'
   totalEnrolled: number
-  tags?: string[]  // <-- เพิ่มบรรทัดนี้
+  tags?: string[]
   isActive: boolean
   isDeleted?: boolean
   createdAt: Date
@@ -38,76 +32,28 @@ export interface CreateCourseData {
   description?: string
 }
 
-// Generate course code
-const generateCourseCode = async (schoolId: string, category: string): Promise<string> => {
-  const prefix = category.substring(0, 3).toUpperCase()
-  const year = new Date().getFullYear().toString().slice(-2)
-  
-  // Get the latest course code
-  const coursesRef = collection(db, 'courses')
-  const q = query(
-    coursesRef,
-    where('schoolId', '==', schoolId),
-    where('code', '>=', `${prefix}${year}`),
-    where('code', '<', `${prefix}${parseInt(year) + 1}`),
-    orderBy('code', 'desc')
-  )
-  
-  const snapshot = await getDocs(q)
-  let nextNumber = 1
-  
-  if (!snapshot.empty) {
-    const lastCode = snapshot.docs[0].data().code
-    const lastNumber = parseInt(lastCode.slice(-3))
-    if (!isNaN(lastNumber)) {
-      nextNumber = lastNumber + 1
-    }
-  }
-  
-  return `${prefix}${year}${nextNumber.toString().padStart(3, '0')}`
-}
-
 // Get all courses for a school
 export const getCourses = async (schoolId: string, status?: string): Promise<Course[]> => {
   try {
-    const coursesRef = collection(db, 'courses')
-    let q
-    
+    let query = supabase
+      .from('courses')
+      .select('*')
+      .eq('school_id', schoolId)
+      .eq('is_deleted', false)
+      .order('name', { ascending: true })
+
     if (status) {
-      q = query(
-        coursesRef,
-        where('schoolId', '==', schoolId),
-        where('status', '==', status),
-        orderBy('name')
-      )
-    } else {
-      q = query(
-        coursesRef,
-        where('schoolId', '==', schoolId),
-        orderBy('name')
-      )
+      query = query.eq('status', status)
     }
-    
-    const snapshot = await getDocs(q)
-    
-    // Filter out deleted courses on client side
-    const courses: Course[] = []
-    snapshot.docs.forEach(doc => {
-      const data = doc.data() as any
-      const course: Course = {
-        id: doc.id,
-        ...data,
-        createdAt: data.createdAt?.toDate() || new Date(),
-        updatedAt: data.updatedAt?.toDate() || new Date()
-      }
-      
-      // Only include if not deleted
-      if (!course.isDeleted) {
-        courses.push(course)
-      }
-    })
-    
-    return courses
+
+    const { data, error } = await query
+
+    if (error) {
+      console.error('Error getting courses:', error)
+      return []
+    }
+
+    return (data || []).map((row: DbCourse) => dbCourseToCourse(row) as Course)
   } catch (error) {
     console.error('Error getting courses:', error)
     return []
@@ -117,19 +63,18 @@ export const getCourses = async (schoolId: string, status?: string): Promise<Cou
 // Get single course
 export const getCourse = async (courseId: string): Promise<Course | null> => {
   try {
-    const courseDoc = await getDoc(doc(db, 'courses', courseId))
-    
-    if (courseDoc.exists()) {
-      const data = courseDoc.data()
-      return {
-        id: courseDoc.id,
-        ...data,
-        createdAt: data.createdAt?.toDate() || new Date(),
-        updatedAt: data.updatedAt?.toDate() || new Date()
-      } as Course
+    const { data, error } = await supabase
+      .from('courses')
+      .select('*')
+      .eq('id', courseId)
+      .single()
+
+    if (error || !data) {
+      console.error('Error getting course:', error)
+      return null
     }
-    
-    return null
+
+    return dbCourseToCourse(data as DbCourse) as Course
   } catch (error) {
     console.error('Error getting course:', error)
     return null
@@ -138,38 +83,46 @@ export const getCourse = async (courseId: string): Promise<Course | null> => {
 
 // Create new course
 export const createCourse = async (
-  schoolId: string, 
+  schoolId: string,
   data: CreateCourseData
 ): Promise<Course> => {
   try {
-    // Generate course code automatically
-    const courseCode = await generateCourseCode(schoolId, data.category)
-    
-    // Prepare course data
-    const courseData = {
-      schoolId,
+    // Generate course code via RPC
+    const { data: courseCode, error: rpcError } = await supabase.rpc('generate_course_code', {
+      p_school_id: schoolId,
+      p_category: data.category
+    })
+
+    if (rpcError) {
+      console.error('Error generating course code:', rpcError)
+      throw rpcError
+    }
+
+    // Prepare insert data (snake_case for DB)
+    const insertData = {
+      school_id: schoolId,
       code: courseCode,
       name: data.name,
       category: data.category,
       description: data.description || '',
       status: 'active' as const,
-      totalEnrolled: 0,
-      isActive: true,
-      isDeleted: false,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
+      total_enrolled: 0,
+      is_active: true,
+      is_deleted: false,
     }
-    
-    // Create course document
-    const docRef = await addDoc(collection(db, 'courses'), courseData)
-    
-    // Return created course
-    return {
-      id: docRef.id,
-      ...courseData,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    } as Course
+
+    const { data: created, error } = await supabase
+      .from('courses')
+      .insert(insertData)
+      .select()
+      .single()
+
+    if (error || !created) {
+      console.error('Error creating course:', error)
+      throw error || new Error('Failed to create course')
+    }
+
+    return dbCourseToCourse(created as DbCourse) as Course
   } catch (error) {
     console.error('Error creating course:', error)
     throw error
@@ -182,19 +135,31 @@ export const updateCourse = async (
   data: Partial<Course>
 ): Promise<void> => {
   try {
-    const updateData = {
-      ...data,
-      updatedAt: serverTimestamp()
+    // Build snake_case update object, skipping immutable fields
+    const updateData: Record<string, any> = {}
+
+    if (data.name !== undefined) updateData.name = data.name
+    if (data.category !== undefined) updateData.category = data.category
+    if (data.description !== undefined) updateData.description = data.description
+    if (data.coverImage !== undefined) updateData.cover_image = data.coverImage
+    if (data.schedule !== undefined) updateData.schedule = data.schedule
+    if (data.primaryTeacherId !== undefined) updateData.primary_teacher_id = data.primaryTeacherId
+    if (data.assistantTeacherIds !== undefined) updateData.assistant_teacher_ids = data.assistantTeacherIds
+    if (data.maxStudentsPerClass !== undefined) updateData.max_students_per_class = data.maxStudentsPerClass
+    if (data.defaultCreditsPerSession !== undefined) updateData.default_credits_per_session = data.defaultCreditsPerSession
+    if (data.tags !== undefined) updateData.tags = data.tags
+    if (data.status !== undefined) updateData.status = data.status
+    if (data.isActive !== undefined) updateData.is_active = data.isActive
+
+    const { error } = await supabase
+      .from('courses')
+      .update(updateData)
+      .eq('id', courseId)
+
+    if (error) {
+      console.error('Error updating course:', error)
+      throw error
     }
-    
-    // Remove fields that shouldn't be updated
-    delete updateData.id
-    delete updateData.schoolId
-    delete updateData.code
-    delete updateData.createdAt
-    delete updateData.totalEnrolled
-    
-    await updateDoc(doc(db, 'courses', courseId), updateData)
   } catch (error) {
     console.error('Error updating course:', error)
     throw error
@@ -204,13 +169,20 @@ export const updateCourse = async (
 // Soft delete course
 export const deleteCourse = async (courseId: string): Promise<void> => {
   try {
-    await updateDoc(doc(db, 'courses', courseId), {
-      status: 'archived',
-      isActive: false,
-      isDeleted: true,
-      deletedAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    })
+    const { error } = await supabase
+      .from('courses')
+      .update({
+        status: 'archived',
+        is_active: false,
+        is_deleted: true,
+        deleted_at: new Date().toISOString(),
+      })
+      .eq('id', courseId)
+
+    if (error) {
+      console.error('Error deleting course:', error)
+      throw error
+    }
   } catch (error) {
     console.error('Error deleting course:', error)
     throw error
@@ -223,17 +195,22 @@ export const searchCourses = async (
   searchTerm: string
 ): Promise<Course[]> => {
   try {
-    // Get all courses and filter client-side
-    const allCourses = await getCourses(schoolId)
-    
-    const lowerSearch = searchTerm.toLowerCase()
-    
-    return allCourses.filter(course => 
-      course.name.toLowerCase().includes(lowerSearch) ||
-      course.code.toLowerCase().includes(lowerSearch) ||
-      course.description?.toLowerCase().includes(lowerSearch) ||
-      course.tags?.some((tag: any) => tag.toLowerCase().includes(lowerSearch))
-    )
+    const pattern = `%${searchTerm}%`
+
+    const { data, error } = await supabase
+      .from('courses')
+      .select('*')
+      .eq('school_id', schoolId)
+      .eq('is_deleted', false)
+      .or(`name.ilike.${pattern},code.ilike.${pattern},description.ilike.${pattern}`)
+      .order('name', { ascending: true })
+
+    if (error) {
+      console.error('Error searching courses:', error)
+      return []
+    }
+
+    return (data || []).map((row: DbCourse) => dbCourseToCourse(row) as Course)
   } catch (error) {
     console.error('Error searching courses:', error)
     return []

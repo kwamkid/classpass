@@ -437,7 +437,8 @@ const CreditHistoryPage = () => {
                             {credit.packageName}
                           </p>
                           <p className="text-xs text-gray-500">
-                            {credit.courseName}
+                            {credit.courseName || credit.applicableCourseNames?.[0] || 'ไม่ระบุวิชา'}
+
                           </p>
                         </div>
                       </td>

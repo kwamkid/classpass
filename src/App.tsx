@@ -4,7 +4,6 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { useAuthStore } from './stores/authStore'
 import { useSchoolStore } from './stores/schoolStore'
-import { useAuthRefresh } from './hooks/useAuthRefresh'
 import { ProtectedRoute } from './components/common/ProtectedRoute'
 import { FontLoader } from './components/common/FontLoader'
 
@@ -57,9 +56,6 @@ const PageLoader = () => (
 function App() {
   const { checkAuth, user, isLoading } = useAuthStore()
   const { loadSchool } = useSchoolStore()
-  
-  // เพิ่ม auth refresh hook
-  useAuthRefresh()
   
   // Check authentication status on app load
   useEffect(() => {
@@ -216,7 +212,7 @@ function App() {
           } />
           
           <Route path="/credits/history" element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['owner', 'admin']}>
               <CreditHistoryPage />
             </ProtectedRoute>
           } />
@@ -256,7 +252,7 @@ function App() {
           
           {/* Reports routes */}
           <Route path="/reports" element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['owner', 'admin']}>
               <ReportsPage />
             </ProtectedRoute>
           } />

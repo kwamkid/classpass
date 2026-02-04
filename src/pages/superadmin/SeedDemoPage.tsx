@@ -2,8 +2,23 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Database, Loader2, CheckCircle, AlertCircle, Users, School, BookOpen, CreditCard } from 'lucide-react'
-import seedDemoAccounts from '../../scripts/seedDemoAccounts'
+import { createSchoolWithOwner } from '../../services/superadmin'
+import { supabase } from '../../services/supabase'
 import toast from 'react-hot-toast'
+
+// Seed demo accounts using Supabase
+const seedDemoAccounts = async () => {
+  // Create school with owner
+  const result = await createSchoolWithOwner({
+    schoolName: 'โรงเรียนสาธิต ClassPass',
+    ownerEmail: 'demo@owner.com',
+    ownerPassword: 'demo1234',
+    ownerFirstName: 'เจ้าของ',
+    ownerLastName: 'ทดสอบ',
+    plan: 'pro',
+  })
+  return { schoolId: result.schoolId }
+}
 
 const SeedDemoPage = () => {
   const navigate = useNavigate()

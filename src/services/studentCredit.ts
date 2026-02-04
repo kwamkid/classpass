@@ -1,18 +1,7 @@
 // src/services/studentCredit.ts
-import { 
-  collection, 
-  doc, 
-  getDocs, 
-  getDoc, 
-  addDoc, 
-  updateDoc, 
-  query, 
-  where, 
-  orderBy,
-  serverTimestamp,
-  runTransaction
-} from 'firebase/firestore'
-import { db } from './firebase'
+import { supabase } from './supabase'
+import { dbCreditToCredit } from '../types/database.types'
+import type { DbStudentCredit } from '../types/database.types'
 
 // Import and re-export type
 import type { StudentCredit } from '../types/models'
@@ -52,15 +41,15 @@ const calculateExpiryDate = (
   validityValue?: number
 ): Date | null => {
   if (validityType === 'unlimited') return null
-  
+
   const expiryDate = new Date(purchaseDate)
-  
+
   if (validityType === 'months' && validityValue) {
     expiryDate.setMonth(expiryDate.getMonth() + validityValue)
   } else if (validityType === 'days' && validityValue) {
     expiryDate.setDate(expiryDate.getDate() + validityValue)
   }
-  
+
   return expiryDate
 }
 
@@ -77,123 +66,109 @@ export const purchaseCredits = async (
   data: PurchaseCreditsData
 ): Promise<StudentCredit> => {
   try {
-    return await runTransaction(db, async (transaction) => {
-      // Get student data
-      const studentRef = doc(db, 'students', data.studentId)
-      const studentDoc = await transaction.get(studentRef)
-      if (!studentDoc.exists()) {
-        throw new Error('Student not found')
-      }
-      const student = studentDoc.data()
-      
-      // Get package data
-      const packageRef = doc(db, 'credit_packages', data.packageId)
-      const packageDoc = await transaction.get(packageRef)
-      if (!packageDoc.exists()) {
-        throw new Error('Package not found')
-      }
-      const creditPackage = packageDoc.data()
-      
-      console.log('Package data:', creditPackage)
-      
-      // Calculate dates
-      const purchaseDate = new Date()
-      const expiryDate = calculateExpiryDate(
-        purchaseDate,
-        creditPackage.validityType,
-        creditPackage.validityValue
-      )
-      
-      // Prepare credit data with backward compatibility
-      const creditData: any = {
-        schoolId,
-        studentId: data.studentId,
-        packageId: data.packageId,
-        
-        // For backward compatibility - single course fields
-        courseId: creditPackage.courseId || creditPackage.applicableCourseIds?.[0] || '',
-        courseName: creditPackage.courseName || creditPackage.applicableCourseNames?.[0] || '',
-        
-        // For new multi-course system
-        applicableCourseIds: creditPackage.applicableCourseIds || [creditPackage.courseId].filter(Boolean),
-        applicableCourseNames: creditPackage.applicableCourseNames || [creditPackage.courseName].filter(Boolean),
-        isUniversal: creditPackage.isUniversal || false,
-        
-        // Reference info
-        studentName: `${student.firstName} ${student.lastName}`,
-        studentCode: student.studentCode || '',
-        packageName: creditPackage.name || '',
-        packageCode: creditPackage.code || '',
-        
-        // Credit info
-        totalCredits: creditPackage.totalCreditsWithBonus || creditPackage.credits || 0,
-        bonusCredits: creditPackage.bonusCredits || 0,
-        usedCredits: 0,
-        remainingCredits: creditPackage.totalCreditsWithBonus || creditPackage.credits || 0,
-        
-        // Financial info
-        originalPrice: creditPackage.price || 0,
-        discountAmount: data.discountAmount || 0,
-        finalPrice: data.paymentAmount || 0,
-        pricePerCredit: data.paymentAmount / (creditPackage.totalCreditsWithBonus || creditPackage.credits || 1),
-        paymentStatus: 'paid' as const,
-        paymentMethod: data.paymentMethod,
-        paymentDate: purchaseDate.toISOString(),
-        
-        // Validity
-        hasExpiry: creditPackage.validityType !== 'unlimited',
-        purchaseDate: purchaseDate.toISOString().split('T')[0],
-        activationDate: purchaseDate.toISOString().split('T')[0],
-        
-        // Status
-        status: 'active' as const,
-        
-        // Receipt
-        receiptNumber: generateReceiptNumber(),
-        
-        // Timestamps
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      }
-      
-      // Add optional fields
-      if (data.paymentReference) {
-        creditData.paymentReference = data.paymentReference
-      }
-      
-      if (data.paymentNote) {
-        creditData.paymentNote = data.paymentNote
-      }
-      
-      if (expiryDate) {
-        creditData.expiryDate = expiryDate.toISOString().split('T')[0]
-      }
-      
-      console.log('Final credit data to be saved:', creditData)
-      
-      // Validate critical fields
-      const requiredFields = ['schoolId', 'studentId', 'packageId', 'studentName', 'packageName']
-      for (const field of requiredFields) {
-        if (!creditData[field]) {
-          throw new Error(`Required field ${field} is missing or undefined`)
-        }
-      }
-      
-      // Create credit document
-      const creditRef = collection(db, 'student_credits')
-      const newCreditRef = doc(creditRef)
-      
-      transaction.set(newCreditRef, creditData)
-      
-      console.log('Credit purchased successfully with ID:', newCreditRef.id)
-      
-      return {
-        id: newCreditRef.id,
-        ...creditData,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      } as StudentCredit
-    })
+    // Get student data
+    const { data: student, error: studentError } = await supabase
+      .from('students')
+      .select('first_name, last_name, student_code')
+      .eq('id', data.studentId)
+      .single()
+
+    if (studentError || !student) {
+      throw new Error('Student not found')
+    }
+
+    // Get package data
+    const { data: creditPackage, error: packageError } = await supabase
+      .from('credit_packages')
+      .select('*')
+      .eq('id', data.packageId)
+      .single()
+
+    if (packageError || !creditPackage) {
+      throw new Error('Package not found')
+    }
+
+    // Calculate dates
+    const purchaseDate = new Date()
+    const expiryDate = calculateExpiryDate(
+      purchaseDate,
+      creditPackage.validity_type,
+      creditPackage.validity_value
+    )
+
+    const totalCredits = creditPackage.total_credits_with_bonus || creditPackage.credits || 0
+
+    // Build insert data
+    const insertData: Record<string, any> = {
+      school_id: schoolId,
+      student_id: data.studentId,
+      package_id: data.packageId,
+
+      // Single course (backward compat)
+      course_id: creditPackage.course_id || (creditPackage.applicable_course_ids?.[0]) || null,
+      course_name: creditPackage.course_name || (creditPackage.applicable_course_names?.[0]) || null,
+
+      // Multi-course
+      applicable_course_ids: creditPackage.applicable_course_ids || [creditPackage.course_id].filter(Boolean),
+      applicable_course_names: creditPackage.applicable_course_names || [creditPackage.course_name].filter(Boolean),
+      is_universal: creditPackage.is_universal || false,
+
+      // Reference info
+      student_name: `${student.first_name} ${student.last_name}`,
+      student_code: student.student_code || '',
+      package_name: creditPackage.name || '',
+      package_code: creditPackage.code || '',
+
+      // Credit info
+      total_credits: totalCredits,
+      bonus_credits: creditPackage.bonus_credits || 0,
+      used_credits: 0,
+      remaining_credits: totalCredits,
+
+      // Financial info
+      original_price: creditPackage.price || 0,
+      discount_amount: data.discountAmount || 0,
+      final_price: data.paymentAmount || 0,
+      price_per_credit: data.paymentAmount / (totalCredits || 1),
+      payment_status: 'paid',
+      payment_method: data.paymentMethod,
+      payment_date: purchaseDate.toISOString(),
+
+      // Validity
+      has_expiry: creditPackage.validity_type !== 'unlimited',
+      purchase_date: purchaseDate.toISOString().split('T')[0],
+      activation_date: purchaseDate.toISOString().split('T')[0],
+
+      // Status
+      status: 'active',
+
+      // Receipt
+      receipt_number: generateReceiptNumber(),
+    }
+
+    // Add optional fields
+    if (data.paymentReference) {
+      insertData.payment_reference = data.paymentReference
+    }
+    if (data.paymentNote) {
+      insertData.payment_note = data.paymentNote
+    }
+    if (expiryDate) {
+      insertData.expiry_date = expiryDate.toISOString().split('T')[0]
+    }
+
+    const { data: row, error } = await supabase
+      .from('student_credits')
+      .insert(insertData)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error purchasing credits:', error)
+      throw error
+    }
+
+    return dbCreditToCredit(row as DbStudentCredit) as StudentCredit
   } catch (error) {
     console.error('Error purchasing credits:', error)
     throw error
@@ -215,54 +190,45 @@ export const getStudentCreditsForCourse = async (
   schoolId?: string
 ): Promise<StudentCredit[]> => {
   try {
-    console.log('Getting credits for course:', { studentId, courseId, schoolId })
-    
-    const creditsRef = collection(db, 'student_credits')
-    let conditions = [
-      where('studentId', '==', studentId),
-      where('status', '==', 'active')
-    ]
-    
+    let query = supabase
+      .from('student_credits')
+      .select('*')
+      .eq('student_id', studentId)
+      .eq('status', 'active')
+
     if (schoolId) {
-      conditions.push(where('schoolId', '==', schoolId))
+      query = query.eq('school_id', schoolId)
     }
-    
-    const q = query(creditsRef, ...conditions)
-    const snapshot = await getDocs(q)
-    
+
+    const { data: rows, error } = await query
+
+    if (error) {
+      console.error('Error getting student credits for course:', error)
+      return []
+    }
+
+    // Filter client-side for multi-course support
     const credits: StudentCredit[] = []
-    snapshot.docs.forEach(doc => {
-      const data = doc.data() as any
-      
-      // Check if credit can be used for this course
-      const canUseForCourse = data.isUniversal || 
-        (data.applicableCourseIds && data.applicableCourseIds.includes(courseId)) ||
-        // Fallback for old data structure
-        (data.courseId && data.courseId === courseId)
-      
-      // Only include if has remaining credits AND can be used for this course
-      if (data.remainingCredits > 0 && canUseForCourse) {
-        let daysUntilExpiry = null
-        if (data.hasExpiry && data.expiryDate) {
-          daysUntilExpiry = calculateDaysUntilExpiry(data.expiryDate)
+    for (const row of rows || []) {
+      const canUseForCourse =
+        row.is_universal ||
+        (row.applicable_course_ids && row.applicable_course_ids.includes(courseId)) ||
+        (row.course_id && row.course_id === courseId)
+
+      if (row.remaining_credits > 0 && canUseForCourse) {
+        const credit = dbCreditToCredit(row as DbStudentCredit) as StudentCredit
+        if (credit.hasExpiry && credit.expiryDate) {
+          (credit as any).daysUntilExpiry = calculateDaysUntilExpiry(credit.expiryDate)
         }
-        
-        credits.push({
-          id: doc.id,
-          ...data,
-          daysUntilExpiry,
-          createdAt: data.createdAt?.toDate() || new Date(),
-          updatedAt: data.updatedAt?.toDate() || new Date()
-        })
+        credits.push(credit)
       }
-    })
-    
+    }
+
     // Sort by purchase date ASC (FIFO - oldest first)
-    credits.sort((a, b) => 
+    credits.sort((a, b) =>
       new Date(a.purchaseDate).getTime() - new Date(b.purchaseDate).getTime()
     )
-    
-    console.log(`Returning ${credits.length} active credits for course ${courseId}`)
+
     return credits
   } catch (error) {
     console.error('Error getting student credits for course:', error)
@@ -272,7 +238,6 @@ export const getStudentCreditsForCourse = async (
 
 /**
  * Get total remaining credits for a specific student and course
- * This sums up all available credits from all packages that can be used for the course
  */
 export const getStudentTotalCreditsForCourse = async (
   studentId: string,
@@ -290,49 +255,40 @@ export const getStudentTotalCreditsForCourse = async (
 
 /**
  * Get all active credits for a student across all courses
- * Used in: Students list page and Student detail page
  */
 export const getStudentAllActiveCredits = async (
   studentId: string,
   schoolId?: string
 ): Promise<StudentCredit[]> => {
   try {
-    console.log('Getting all active credits for student:', studentId, 'schoolId:', schoolId)
-    
-    const creditsRef = collection(db, 'student_credits')
-    let conditions = [
-      where('studentId', '==', studentId),
-      where('status', '==', 'active')
-    ]
-    
+    let query = supabase
+      .from('student_credits')
+      .select('*')
+      .eq('student_id', studentId)
+      .eq('status', 'active')
+
     if (schoolId) {
-      conditions.push(where('schoolId', '==', schoolId))
+      query = query.eq('school_id', schoolId)
     }
-    
-    const q = query(creditsRef, ...conditions)
-    const snapshot = await getDocs(q)
-    
+
+    const { data: rows, error } = await query
+
+    if (error) {
+      console.error('Error getting all student active credits:', error)
+      return []
+    }
+
     const credits: StudentCredit[] = []
-    snapshot.docs.forEach(doc => {
-      const data = doc.data() as any
-      
-      // Only include if has remaining credits
-      if (data.remainingCredits > 0) {
-        let daysUntilExpiry = null
-        if (data.hasExpiry && data.expiryDate) {
-          daysUntilExpiry = calculateDaysUntilExpiry(data.expiryDate)
+    for (const row of rows || []) {
+      if (row.remaining_credits > 0) {
+        const credit = dbCreditToCredit(row as DbStudentCredit) as StudentCredit
+        if (credit.hasExpiry && credit.expiryDate) {
+          (credit as any).daysUntilExpiry = calculateDaysUntilExpiry(credit.expiryDate)
         }
-        
-        credits.push({
-          id: doc.id,
-          ...data,
-          daysUntilExpiry,
-          createdAt: data.createdAt?.toDate() || new Date(),
-          updatedAt: data.updatedAt?.toDate() || new Date()
-        })
+        credits.push(credit)
       }
-    })
-    
+    }
+
     // Sort by package name, then by purchase date
     credits.sort((a, b) => {
       if (a.packageName !== b.packageName) {
@@ -340,8 +296,7 @@ export const getStudentAllActiveCredits = async (
       }
       return new Date(b.purchaseDate).getTime() - new Date(a.purchaseDate).getTime()
     })
-    
-    console.log(`Returning ${credits.length} active credits with remaining balance`)
+
     return credits
   } catch (error) {
     console.error('Error getting all student active credits:', error)
@@ -351,7 +306,6 @@ export const getStudentAllActiveCredits = async (
 
 /**
  * Get total remaining credits for a student (sum of all courses)
- * Used in: Students list page for quick display
  */
 export const getStudentTotalCredits = async (
   studentId: string,
@@ -368,7 +322,6 @@ export const getStudentTotalCredits = async (
 
 /**
  * Get credit summary grouped by package
- * Used in: Students list page tooltip
  */
 export const getStudentCreditsSummary = async (
   studentId: string,
@@ -377,10 +330,10 @@ export const getStudentCreditsSummary = async (
 ): Promise<CreditPackageSummary[]> => {
   try {
     const credits = await getStudentAllActiveCredits(studentId, schoolId)
-    
+
     return credits.map(credit => {
       let applicableCourses: string[] = []
-      
+
       if (credit.isUniversal) {
         applicableCourses = ['ใช้ได้ทุกวิชา']
       } else if (credit.applicableCourseIds && courses) {
@@ -388,7 +341,7 @@ export const getStudentCreditsSummary = async (
           .map(id => courses.find(c => c.id === id)?.name)
           .filter(Boolean) as string[]
       }
-      
+
       return {
         courseName: credit.courseName,
         packageName: credit.packageName,
@@ -407,7 +360,6 @@ export const getStudentCreditsSummary = async (
 // LEGACY FUNCTIONS (kept for backward compatibility)
 // ====================================
 
-// Get all credits for a student (simplified version)
 export const getStudentCredits = async (
   studentId: string,
   courseId?: string
@@ -418,7 +370,6 @@ export const getStudentCredits = async (
   return getStudentAllActiveCredits(studentId)
 }
 
-// Legacy function - redirects to new centralized function
 export const getStudentAllCoursesCredits = async (
   studentId: string
 ): Promise<StudentCredit[]> => {
@@ -431,32 +382,39 @@ export const useCredits = async (
   creditsToUse: number = 1
 ): Promise<void> => {
   try {
-    await runTransaction(db, async (transaction) => {
-      const creditRef = doc(db, 'student_credits', creditId)
-      const creditDoc = await transaction.get(creditRef)
-      
-      if (!creditDoc.exists()) {
-        throw new Error('Credit not found')
-      }
-      
-      const credit = creditDoc.data()
-      
-      if (credit.remainingCredits < creditsToUse) {
-        throw new Error('Insufficient credits')
-      }
-      
-      const newUsedCredits = credit.usedCredits + creditsToUse
-      const newRemainingCredits = credit.remainingCredits - creditsToUse
-      const newStatus = newRemainingCredits === 0 ? 'depleted' : credit.status
-      
-      transaction.update(creditRef, {
-        usedCredits: newUsedCredits,
-        remainingCredits: newRemainingCredits,
+    // Get current credit
+    const { data: credit, error: fetchError } = await supabase
+      .from('student_credits')
+      .select('remaining_credits, used_credits, status')
+      .eq('id', creditId)
+      .single()
+
+    if (fetchError || !credit) {
+      throw new Error('Credit not found')
+    }
+
+    if (credit.remaining_credits < creditsToUse) {
+      throw new Error('Insufficient credits')
+    }
+
+    const newUsedCredits = credit.used_credits + creditsToUse
+    const newRemainingCredits = credit.remaining_credits - creditsToUse
+    const newStatus = newRemainingCredits === 0 ? 'depleted' : credit.status
+
+    const { error } = await supabase
+      .from('student_credits')
+      .update({
+        used_credits: newUsedCredits,
+        remaining_credits: newRemainingCredits,
         status: newStatus,
-        lastUsedDate: new Date().toISOString().split('T')[0],
-        updatedAt: serverTimestamp()
+        last_used_date: new Date().toISOString().split('T')[0],
+        updated_at: new Date().toISOString(),
       })
-    })
+      .eq('id', creditId)
+
+    if (error) {
+      throw error
+    }
   } catch (error) {
     console.error('Error using credits:', error)
     throw error
@@ -467,26 +425,30 @@ export const useCredits = async (
 export const updateExpiredCredits = async (schoolId: string): Promise<void> => {
   try {
     const today = new Date().toISOString().split('T')[0]
-    
-    const creditsRef = collection(db, 'student_credits')
-    const q = query(
-      creditsRef,
-      where('schoolId', '==', schoolId),
-      where('status', '==', 'active'),
-      where('hasExpiry', '==', true),
-      where('expiryDate', '<', today)
-    )
-    
-    const snapshot = await getDocs(q)
-    
-    const updates = snapshot.docs.map(doc => 
-      updateDoc(doc.ref, {
+
+    const { data: rows, error: fetchError } = await supabase
+      .from('student_credits')
+      .select('id')
+      .eq('school_id', schoolId)
+      .eq('status', 'active')
+      .eq('has_expiry', true)
+      .lt('expiry_date', today)
+
+    if (fetchError || !rows || rows.length === 0) return
+
+    const ids = rows.map(r => r.id)
+
+    const { error } = await supabase
+      .from('student_credits')
+      .update({
         status: 'expired',
-        updatedAt: serverTimestamp()
+        updated_at: new Date().toISOString(),
       })
-    )
-    
-    await Promise.all(updates)
+      .in('id', ids)
+
+    if (error) {
+      console.error('Error updating expired credits:', error)
+    }
   } catch (error) {
     console.error('Error updating expired credits:', error)
   }
@@ -494,7 +456,6 @@ export const updateExpiredCredits = async (schoolId: string): Promise<void> => {
 
 /**
  * Get all credits for a school (for admin/reports)
- * Used in: Course detail, Credit history, Reports
  */
 export const getSchoolCredits = async (
   schoolId: string,
@@ -507,68 +468,50 @@ export const getSchoolCredits = async (
   }
 ): Promise<StudentCredit[]> => {
   try {
-    console.log('Getting school credits:', { schoolId, filters })
-    
-    const creditsRef = collection(db, 'student_credits')
-    let conditions = [where('schoolId', '==', schoolId)]
-    
-    // Add filters if provided
+    let query = supabase
+      .from('student_credits')
+      .select('*')
+      .eq('school_id', schoolId)
+
     if (filters?.studentId) {
-      conditions.push(where('studentId', '==', filters.studentId))
+      query = query.eq('student_id', filters.studentId)
     }
     if (filters?.status) {
-      conditions.push(where('status', '==', filters.status))
+      query = query.eq('status', filters.status)
     }
-    
-    const q = query(creditsRef, ...conditions)
-    const snapshot = await getDocs(q)
-    
-    console.log(`Found ${snapshot.size} credits for school`)
-    
-    let credits: StudentCredit[] = []
-    snapshot.docs.forEach(doc => {
-      const data = doc.data() as any
-      
-      // Filter by courseId if specified
-      if (filters?.courseId) {
-        const canUseForCourse = data.isUniversal || 
-          (data.applicableCourseIds && data.applicableCourseIds.includes(filters.courseId)) ||
-          // Fallback for old data
-          (data.courseId && data.courseId === filters.courseId)
-        
-        if (!canUseForCourse) {
-          return // Skip this credit
-        }
-      }
-      
-      // Calculate days until expiry
-      let daysUntilExpiry = null
-      if (data.hasExpiry && data.expiryDate) {
-        daysUntilExpiry = calculateDaysUntilExpiry(data.expiryDate)
-      }
-      
-      credits.push({
-        id: doc.id,
-        ...data,
-        daysUntilExpiry,
-        createdAt: data.createdAt?.toDate() || new Date(),
-        updatedAt: data.updatedAt?.toDate() || new Date()
-      })
-    })
-    
-    // Client-side filtering for date range
     if (filters?.startDate) {
-      credits = credits.filter(c => c.purchaseDate >= filters.startDate!)
+      query = query.gte('purchase_date', filters.startDate)
     }
     if (filters?.endDate) {
-      credits = credits.filter(c => c.purchaseDate <= filters.endDate!)
+      query = query.lte('purchase_date', filters.endDate)
     }
-    
-    // Sort by purchase date desc
-    credits.sort((a, b) => 
-      new Date(b.purchaseDate).getTime() - new Date(a.purchaseDate).getTime()
-    )
-    
+
+    query = query.order('purchase_date', { ascending: false })
+
+    const { data: rows, error } = await query
+
+    if (error) {
+      console.error('Error getting school credits:', error)
+      return []
+    }
+
+    let credits: StudentCredit[] = (rows || []).map(row => {
+      const credit = dbCreditToCredit(row as DbStudentCredit) as StudentCredit
+      if (credit.hasExpiry && credit.expiryDate) {
+        (credit as any).daysUntilExpiry = calculateDaysUntilExpiry(credit.expiryDate)
+      }
+      return credit
+    })
+
+    // Client-side filtering for courseId (multi-course support)
+    if (filters?.courseId) {
+      credits = credits.filter(c => {
+        return c.isUniversal ||
+          (c.applicableCourseIds && c.applicableCourseIds.includes(filters.courseId!)) ||
+          (c.courseId && c.courseId === filters.courseId)
+      })
+    }
+
     return credits
   } catch (error) {
     console.error('Error getting school credits:', error)
@@ -576,46 +519,21 @@ export const getSchoolCredits = async (
   }
 }
 
-// Debug functions
+// Debug function
 export const getAllStudentCreditsDebug = async (
   studentId: string
 ): Promise<StudentCredit[]> => {
   try {
-    console.log('DEBUG: Getting ALL credits for student:', studentId)
-    
-    const creditsRef = collection(db, 'student_credits')
-    const q = query(
-      creditsRef,
-      where('studentId', '==', studentId)
-    )
-    
-    const snapshot = await getDocs(q)
-    console.log('DEBUG: Total credits found:', snapshot.size)
-    
-    const credits: StudentCredit[] = []
-    snapshot.docs.forEach((doc, index) => {
-      const data = doc.data() as any
-      console.log(`DEBUG: Credit ${index + 1}:`, {
-        id: doc.id,
-        packageName: data.packageName,
-        status: data.status,
-        remainingCredits: data.remainingCredits,
-        totalCredits: data.totalCredits,
-        isUniversal: data.isUniversal,
-        applicableCourseIds: data.applicableCourseIds
-      })
-      
-      credits.push({
-        id: doc.id,
-        ...data,
-        createdAt: data.createdAt?.toDate() || new Date(),
-        updatedAt: data.updatedAt?.toDate() || new Date()
-      })
-    })
-    
-    return credits
+    const { data: rows, error } = await supabase
+      .from('student_credits')
+      .select('*')
+      .eq('student_id', studentId)
+
+    if (error || !rows) return []
+
+    return rows.map(row => dbCreditToCredit(row as DbStudentCredit) as StudentCredit)
   } catch (error) {
-    console.error('DEBUG: Error getting all student credits:', error)
+    console.error('Error getting all student credits:', error)
     return []
   }
 }

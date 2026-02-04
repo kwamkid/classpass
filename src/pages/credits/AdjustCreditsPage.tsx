@@ -21,8 +21,7 @@ import { useAuthStore } from '../../stores/authStore'
 import * as studentService from '../../services/student'
 import * as courseService from '../../services/course'
 import * as studentCreditService from '../../services/studentCredit'
-import { collection, getDocs, query, where, addDoc, serverTimestamp, updateDoc, doc } from 'firebase/firestore'
-import { db } from '../../services/firebase'
+import { supabase } from '../../services/supabase'
 import toast from 'react-hot-toast'
 import Layout from '../../components/layout/Layout'
 
@@ -119,41 +118,22 @@ const AdjustCreditsPage = () => {
 
   const loadStudentCredits = async () => {
     if (!selectedStudent || !user?.schoolId) return
-    
+
     try {
-      const creditsRef = collection(db, 'student_credits')
-      let q = query(
-        creditsRef,
-        where('schoolId', '==', user.schoolId),
-        where('studentId', '==', selectedStudent.id),
-        where('status', '==', 'active')
-      )
-      
-      // Add course filter if selected
       if (selectedCourse) {
-        q = query(
-          creditsRef,
-          where('schoolId', '==', user.schoolId),
-          where('studentId', '==', selectedStudent.id),
-          where('courseId', '==', selectedCourse.id),
-          where('status', '==', 'active')
+        const credits = await studentCreditService.getStudentCreditsForCourse(
+          selectedStudent.id,
+          selectedCourse.id,
+          user.schoolId
         )
+        setStudentCredits(credits)
+      } else {
+        const credits = await studentCreditService.getStudentAllActiveCredits(
+          selectedStudent.id,
+          user.schoolId
+        )
+        setStudentCredits(credits)
       }
-      
-      const snapshot = await getDocs(q)
-      const credits: studentCreditService.StudentCredit[] = []
-      
-      snapshot.docs.forEach(doc => {
-        const data = doc.data()
-        credits.push({
-          id: doc.id,
-          ...data,
-          createdAt: data.createdAt?.toDate() || new Date(),
-          updatedAt: data.updatedAt?.toDate() || new Date()
-        } as studentCreditService.StudentCredit)
-      })
-      
-      setStudentCredits(credits)
     } catch (error) {
       console.error('Error loading student credits:', error)
     }
@@ -161,32 +141,43 @@ const AdjustCreditsPage = () => {
 
   const loadAdjustmentHistory = async () => {
     if (!user?.schoolId) return
-    
+
     try {
-      const adjustmentsRef = collection(db, 'credit_adjustments')
-      const q = query(
-        adjustmentsRef,
-        where('schoolId', '==', user.schoolId)
-      )
-      
-      const snapshot = await getDocs(q)
-      const adjustments: CreditAdjustment[] = []
-      
-      snapshot.docs.forEach(doc => {
-        const data = doc.data()
-        adjustments.push({
-          id: doc.id,
-          ...data,
-          createdAt: data.createdAt?.toDate() || new Date()
-        } as CreditAdjustment)
-      })
-      
-      // Sort by date desc
-      adjustments.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-      
-      setAdjustmentHistory(adjustments.slice(0, 20)) // Show last 20 adjustments
+      const { data: rows, error } = await supabase
+        .from('credit_adjustments')
+        .select('*')
+        .eq('school_id', user.schoolId)
+        .order('created_at', { ascending: false })
+        .limit(20)
+
+      if (error || !rows) {
+        // Table may not exist yet - that's OK
+        setAdjustmentHistory([])
+        return
+      }
+
+      const adjustments: CreditAdjustment[] = rows.map(row => ({
+        id: row.id,
+        schoolId: row.school_id,
+        studentId: row.student_id,
+        creditId: row.credit_id,
+        studentName: row.student_name,
+        courseName: row.course_name,
+        adjustmentType: row.adjustment_type,
+        amount: row.amount,
+        creditsBefore: row.credits_before,
+        creditsAfter: row.credits_after,
+        reason: row.reason,
+        adjustedBy: row.adjusted_by,
+        adjustedByName: row.adjusted_by_name,
+        adjustedByRole: row.adjusted_by_role,
+        createdAt: new Date(row.created_at),
+      }))
+
+      setAdjustmentHistory(adjustments)
     } catch (error) {
       console.error('Error loading adjustment history:', error)
+      setAdjustmentHistory([])
     }
   }
 
@@ -252,40 +243,34 @@ const AdjustCreditsPage = () => {
       const creditsBefore = selectedCredit.remainingCredits
       
       // Update credit balance
-      const creditRef = doc(db, 'student_credits', selectedCredit.id)
-      await updateDoc(creditRef, {
-        remainingCredits: newCredits,
-        usedCredits: selectedCredit.totalCredits - newCredits,
-        status: newCredits === 0 ? 'depleted' : 'active',
-        lastAdjustedAt: serverTimestamp(),
-        lastAdjustedBy: user.id,
-        updatedAt: serverTimestamp()
-      })
-      
-      // Record adjustment - Fixed: Check for courseName
-      const adjustmentData = {
-        schoolId: user.schoolId,
-        studentId: selectedCredit.studentId,
-        creditId: selectedCredit.id,
-        studentName: selectedCredit.studentName,
-        courseName: selectedCredit.courseName || selectedCredit.applicableCourseNames?.[0] || 'ไม่ระบุวิชา',
-        
-        adjustmentType,
+      const { error: updateError } = await supabase
+        .from('student_credits')
+        .update({
+          remaining_credits: newCredits,
+          used_credits: selectedCredit.totalCredits - newCredits,
+          status: newCredits === 0 ? 'depleted' : 'active',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', selectedCredit.id)
+
+      if (updateError) throw updateError
+
+      // Record adjustment
+      await supabase.from('credit_adjustments').insert({
+        school_id: user.schoolId,
+        student_id: selectedCredit.studentId,
+        credit_id: selectedCredit.id,
+        student_name: selectedCredit.studentName,
+        course_name: selectedCredit.courseName || selectedCredit.applicableCourseNames?.[0] || 'ไม่ระบุวิชา',
+        adjustment_type: adjustmentType,
         amount: adjustmentType === 'set' ? newCredits : amount,
-        
-        creditsBefore,
-        creditsAfter: newCredits,
-        
+        credits_before: creditsBefore,
+        credits_after: newCredits,
         reason: adjustmentReason.trim(),
-        
-        adjustedBy: user.id,
-        adjustedByName: user.displayName || `${user.firstName} ${user.lastName}`,
-        adjustedByRole: user.role,
-        
-        createdAt: serverTimestamp()
-      }
-      
-      await addDoc(collection(db, 'credit_adjustments'), adjustmentData)
+        adjusted_by: user.id,
+        adjusted_by_name: user.displayName || `${user.firstName} ${user.lastName}`,
+        adjusted_by_role: user.role,
+      })
       
       toast.success('ปรับเครดิตสำเร็จ!')
       

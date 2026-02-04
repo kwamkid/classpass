@@ -171,7 +171,7 @@ export interface CreditPackage {
   totalCreditsWithBonus: number
   popular: boolean
   recommended: boolean
-  displayOrder: number
+  // displayOrder: number
   color?: string
   status?: 'active' | 'inactive' | 'archived' // Added for compatibility
   isActive: boolean

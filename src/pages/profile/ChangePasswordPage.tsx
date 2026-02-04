@@ -16,8 +16,7 @@ import {
 } from 'lucide-react'
 import Layout from '../../components/layout/Layout'
 import { useAuthStore } from '../../stores/authStore'
-import { updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth'
-import { auth } from '../../services/firebase'
+import { supabase } from '../../services/supabase'
 import toast from 'react-hot-toast'
 
 // Form validation schema
@@ -94,38 +93,49 @@ const ChangePasswordPage = () => {
   }
 
   const onSubmit = async (data: PasswordFormData) => {
-    if (!user?.email || !auth.currentUser) {
+    if (!user?.email) {
       toast.error('ไม่พบข้อมูลผู้ใช้')
       return
     }
 
     setIsSubmitting(true)
     try {
-      // Re-authenticate user with current password
-      const credential = EmailAuthProvider.credential(user.email, data.currentPassword)
-      await reauthenticateWithCredential(auth.currentUser, credential)
-      
-      // Update password
-      await updatePassword(auth.currentUser, data.newPassword)
-      
-      toast.success('เปลี่ยนรหัสผ่านสำเร็จ')
-      navigate('/settings')
-    } catch (error: any) {
-      console.error('Error changing password:', error)
-      
-      if (error.code === 'auth/wrong-password') {
+      // Verify current password by attempting sign in
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: data.currentPassword,
+      })
+
+      if (signInError) {
         setError('currentPassword', {
           type: 'manual',
           message: 'รหัสผ่านปัจจุบันไม่ถูกต้อง'
         })
-      } else if (error.code === 'auth/weak-password') {
-        setError('newPassword', {
-          type: 'manual',
-          message: 'รหัสผ่านใหม่ไม่แข็งแรงพอ'
-        })
-      } else {
-        toast.error(error.message || 'เกิดข้อผิดพลาดในการเปลี่ยนรหัสผ่าน')
+        return
       }
+
+      // Update password
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: data.newPassword,
+      })
+
+      if (updateError) {
+        if (updateError.message.includes('weak')) {
+          setError('newPassword', {
+            type: 'manual',
+            message: 'รหัสผ่านใหม่ไม่แข็งแรงพอ'
+          })
+        } else {
+          toast.error(updateError.message || 'เกิดข้อผิดพลาดในการเปลี่ยนรหัสผ่าน')
+        }
+        return
+      }
+
+      toast.success('เปลี่ยนรหัสผ่านสำเร็จ')
+      navigate('/settings')
+    } catch (error: any) {
+      console.error('Error changing password:', error)
+      toast.error(error.message || 'เกิดข้อผิดพลาดในการเปลี่ยนรหัสผ่าน')
     } finally {
       setIsSubmitting(false)
     }
