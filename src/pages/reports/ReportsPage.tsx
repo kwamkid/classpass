@@ -21,12 +21,17 @@ import { useAuthStore } from '../../stores/authStore'
 import { useSchoolStore } from '../../stores/schoolStore'
 import * as reportService from '../../services/reports'
 import Layout from '../../components/layout/Layout'
+import DateRangePicker, { type DateValueType } from '../../components/ui/DateRangePicker'
 import toast from 'react-hot-toast'
 
 const ReportsPage = () => {
   const { user } = useAuthStore()
   const { school } = useSchoolStore()
-  const [timeRange, setTimeRange] = useState('month') // today, week, month, year
+  const [timeRange, setTimeRange] = useState('month') // today, week, month, year, custom
+  const [customDateRange, setCustomDateRange] = useState<DateValueType>({
+    startDate: null,
+    endDate: null
+  })
   const [loading, setLoading] = useState(true)
   const [exporting, setExporting] = useState(false)
   
@@ -66,9 +71,15 @@ const ReportsPage = () => {
   // Load all statistics
   useEffect(() => {
     if (school?.id) {
-      loadStats()
+      if (timeRange === 'custom') {
+        if (customDateRange?.startDate && customDateRange?.endDate) {
+          loadStats()
+        }
+      } else {
+        loadStats()
+      }
     }
-  }, [school?.id, timeRange])
+  }, [school?.id, timeRange, customDateRange])
 
   const loadStats = async () => {
     if (!school?.id) return
@@ -76,13 +87,24 @@ const ReportsPage = () => {
     try {
       setLoading(true)
       
+      const customRange = timeRange === 'custom' && customDateRange?.startDate && customDateRange?.endDate
+        ? {
+            start: customDateRange.startDate instanceof Date
+              ? customDateRange.startDate.toISOString().split('T')[0]
+              : String(customDateRange.startDate),
+            end: customDateRange.endDate instanceof Date
+              ? customDateRange.endDate.toISOString().split('T')[0]
+              : String(customDateRange.endDate)
+          }
+        : undefined
+
       // Load all stats in parallel
       const [revenue, students, attendance, credits, topCourses] = await Promise.all([
-        reportService.getRevenueStats(school.id, timeRange),
-        reportService.getStudentStats(school.id, timeRange),
-        reportService.getAttendanceStats(school.id, timeRange),
-        reportService.getCreditStats(school.id, timeRange),
-        reportService.getTopCourses(school.id, timeRange, 5)
+        reportService.getRevenueStats(school.id, timeRange, customRange),
+        reportService.getStudentStats(school.id, timeRange, customRange),
+        reportService.getAttendanceStats(school.id, timeRange, customRange),
+        reportService.getCreditStats(school.id, timeRange, customRange),
+        reportService.getTopCourses(school.id, timeRange, 5, customRange)
       ])
 
       setStats({
@@ -114,7 +136,17 @@ const ReportsPage = () => {
 
     try {
       setExporting(true)
-      const data = await reportService.exportReportData(school.id, 'all', timeRange)
+      const customRange = timeRange === 'custom' && customDateRange?.startDate && customDateRange?.endDate
+        ? {
+            start: customDateRange.startDate instanceof Date
+              ? customDateRange.startDate.toISOString().split('T')[0]
+              : String(customDateRange.startDate),
+            end: customDateRange.endDate instanceof Date
+              ? customDateRange.endDate.toISOString().split('T')[0]
+              : String(customDateRange.endDate)
+          }
+        : undefined
+      const data = await reportService.exportReportData(school.id, 'all', timeRange, customRange)
       
       // Convert to CSV (simple implementation)
       const csv = convertToCSV(data)
@@ -171,6 +203,7 @@ const ReportsPage = () => {
       case 'week': return 'สัปดาห์นี้'
       case 'month': return 'เดือนนี้'
       case 'year': return 'ปีนี้'
+      case 'custom': return 'กำหนดเอง'
       default: return range
     }
   }
@@ -200,7 +233,7 @@ const ReportsPage = () => {
             </p>
           </div>
           
-          <div className="mt-4 md:mt-0 flex items-center space-x-3">
+          <div className="mt-4 md:mt-0 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
             {/* Time Range Filter */}
             <select
               className="input-base"
@@ -212,8 +245,20 @@ const ReportsPage = () => {
               <option value="week">สัปดาห์นี้</option>
               <option value="month">เดือนนี้</option>
               <option value="year">ปีนี้</option>
+              <option value="custom">กำหนดเอง</option>
             </select>
-            
+
+            {timeRange === 'custom' && (
+              <div className="w-64">
+                <DateRangePicker
+                  value={customDateRange}
+                  onChange={(value) => setCustomDateRange(value)}
+                  placeholder="เลือกช่วงวันที่"
+                  showShortcuts={false}
+                />
+              </div>
+            )}
+
             <button
               onClick={exportReport}
               disabled={exporting}

@@ -34,85 +34,95 @@ export interface CreatePackageData {
 
 // Create package
 export const createPackage = async (schoolId: string, data: CreatePackageData): Promise<CreditPackage> => {
+  // Calculate required fields
+  const totalCreditsWithBonus = data.credits + (data.bonusCredits || 0)
+  const pricePerCredit = data.price / totalCreditsWithBonus
+
+  // Build insert payload (snake_case for DB)
+  const insertData: Record<string, any> = {
+    school_id: schoolId,
+    course_id: data.courseId || null,
+    course_name: data.courseName || null,
+    applicable_course_ids: data.applicableCourseIds || [],
+    applicable_course_names: data.applicableCourseNames || [],
+    is_universal: data.isUniversal || false,
+    name: data.name,
+    description: data.description || null,
+    code: data.code,
+    credits: data.credits,
+    price: data.price,
+    price_per_credit: pricePerCredit,
+    validity_type: data.validityType,
+    validity_value: data.validityValue || null,
+    validity_description: data.validityDescription || null,
+    is_promotion: data.isPromotion || false,
+    original_price: data.originalPrice || null,
+    discount_percent: data.discountPercent || null,
+    bonus_credits: data.bonusCredits || 0,
+    total_credits_with_bonus: totalCreditsWithBonus,
+    popular: data.popular || false,
+    recommended: data.recommended || false,
+    color: data.color || null,
+    status: 'active',
+    is_active: true,
+  }
+
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 10000)
+
   try {
-    // Calculate required fields
-    const totalCreditsWithBonus = data.credits + (data.bonusCredits || 0)
-    const pricePerCredit = data.price / totalCreditsWithBonus
-
-    // Build insert payload (snake_case for DB), omit displayOrder
-    const insertData: Record<string, any> = {
-      school_id: schoolId,
-      course_id: data.courseId || null,
-      course_name: data.courseName || null,
-      applicable_course_ids: data.applicableCourseIds || [],
-      applicable_course_names: data.applicableCourseNames || [],
-      is_universal: data.isUniversal || false,
-      name: data.name,
-      description: data.description || null,
-      code: data.code,
-      credits: data.credits,
-      price: data.price,
-      price_per_credit: pricePerCredit,
-      validity_type: data.validityType,
-      validity_value: data.validityValue || null,
-      validity_description: data.validityDescription || null,
-      is_promotion: data.isPromotion || false,
-      original_price: data.originalPrice || null,
-      discount_percent: data.discountPercent || null,
-      bonus_credits: data.bonusCredits || 0,
-      total_credits_with_bonus: totalCreditsWithBonus,
-      popular: data.popular || false,
-      recommended: data.recommended || false,
-      color: data.color || null,
-      status: 'active',
-      is_active: true,
-    }
-
-    console.log('📝 Creating package with data:', insertData)
-
     const { data: row, error } = await supabase
       .from('credit_packages')
       .insert(insertData)
       .select()
+      .abortSignal(controller.signal)
       .single()
 
+    clearTimeout(timeoutId)
+
     if (error) {
-      console.error('❌ Supabase insert error:', error)
+      console.error('Supabase insert error:', error)
       throw error
     }
 
-    console.log('✅ Package created with ID:', row.id)
-
     return dbPackageToPackage(row as DbCreditPackage) as CreditPackage
-  } catch (error) {
-    console.error('❌ Error creating package:', error)
+  } catch (error: any) {
+    clearTimeout(timeoutId)
+    if (error.name === 'AbortError') {
+      throw new Error('การบันทึกใช้เวลานานเกินไป กรุณาลองใหม่')
+    }
+    console.error('Error creating package:', error)
     throw error
   }
 }
 
 // Get all packages for a school
 export const getPackages = async (schoolId: string): Promise<CreditPackage[]> => {
-  try {
-    console.log('🔍 Getting packages for school:', schoolId)
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 8000)
 
+  try {
     const { data: rows, error } = await supabase
       .from('credit_packages')
       .select('*')
       .eq('school_id', schoolId)
       .eq('is_active', true)
       .order('created_at', { ascending: false })
+      .abortSignal(controller.signal)
+
+    clearTimeout(timeoutId)
 
     if (error) {
-      console.error('❌ Supabase query error:', error)
+      console.error('Supabase query error:', error)
       return []
     }
 
-    const packages = (rows || []).map((row) => dbPackageToPackage(row as DbCreditPackage) as CreditPackage)
-
-    console.log('✅ Final packages:', packages.length)
-    return packages
-  } catch (error) {
-    console.error('❌ Error getting packages:', error)
+    return (rows || []).map((row) => dbPackageToPackage(row as DbCreditPackage) as CreditPackage)
+  } catch (error: any) {
+    clearTimeout(timeoutId)
+    if (error.name !== 'AbortError') {
+      console.error('Error getting packages:', error)
+    }
     return []
   }
 }

@@ -25,6 +25,7 @@ import * as studentCreditService from '../../services/studentCredit'
 import * as courseService from '../../services/course'
 import toast from 'react-hot-toast'
 import Layout from '../../components/layout/Layout'
+import DateRangePicker, { type DateValueType } from '../../components/ui/DateRangePicker'
 
 const CreditHistoryPage = () => {
   const { user } = useAuthStore()
@@ -36,9 +37,9 @@ const CreditHistoryPage = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCourse, setSelectedCourse] = useState<string>('all')
   const [selectedStatus, setSelectedStatus] = useState<string>('all')
-  const [dateRange, setDateRange] = useState({
-    start: '',
-    end: ''
+  const [dateRange, setDateRange] = useState<DateValueType>({
+    startDate: null,
+    endDate: null
   })
   
   // Summary stats
@@ -66,11 +67,18 @@ const CreditHistoryPage = () => {
       setCourses(coursesData)
       
       // Load credit history
+      const startDate = dateRange?.startDate
+        ? (dateRange.startDate instanceof Date ? dateRange.startDate.toISOString().split('T')[0] : String(dateRange.startDate))
+        : undefined
+      const endDate = dateRange?.endDate
+        ? (dateRange.endDate instanceof Date ? dateRange.endDate.toISOString().split('T')[0] : String(dateRange.endDate))
+        : undefined
+
       const filters = {
         courseId: selectedCourse === 'all' ? undefined : selectedCourse,
         status: selectedStatus === 'all' ? undefined : selectedStatus,
-        startDate: dateRange.start || undefined,
-        endDate: dateRange.end || undefined
+        startDate,
+        endDate
       }
       
       const creditsData = await studentCreditService.getSchoolCredits(user.schoolId, filters)
@@ -191,122 +199,131 @@ const CreditHistoryPage = () => {
 
   return (
     <Layout>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-6 sm:mb-8">
           <Link
             to="/credits/purchase"
-            className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-4 text-base"
+            className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-4 text-sm sm:text-base"
           >
-            <ArrowLeft className="w-5 h-5 mr-2" />
+            <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
             กลับไปหน้าซื้อแพ็คเกจ
           </Link>
-          
-          <div className="flex justify-between items-start">
+
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 flex items-center">
-                <Clock className="w-8 h-8 mr-3 text-primary-600" />
+              <h1 className="text-xl sm:text-3xl font-bold text-gray-900 flex items-center">
+                <Clock className="w-6 h-6 sm:w-8 sm:h-8 mr-2 sm:mr-3 text-primary-600" />
                 ประวัติการซื้อแพ็คเกจ
               </h1>
-              <p className="mt-2 text-base text-gray-500">
+              <p className="mt-1 sm:mt-2 text-sm sm:text-base text-gray-500">
                 ดูประวัติการซื้อและจัดการเครดิตทั้งหมด
               </p>
             </div>
-            
+
             <button
               onClick={exportToExcel}
-              className="btn-secondary inline-flex items-center text-base"
+              className="btn-secondary inline-flex items-center text-sm sm:text-base self-start"
             >
-              <Download className="w-5 h-5 mr-2" />
+              <Download className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
               ส่งออก Excel
             </button>
           </div>
         </div>
 
         {/* Summary Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6 mb-6 sm:mb-8">
+          <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-500">ยอดขายทั้งหมด</p>
-                <p className="text-3xl font-bold text-gray-900 mt-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm font-medium text-gray-500">ยอดขายทั้งหมด</p>
+                <p className="text-xl sm:text-3xl font-bold text-gray-900 mt-1 sm:mt-2 truncate">
                   {stats.totalSales.toLocaleString()}
                 </p>
-                <p className="text-sm text-gray-500 mt-1">รายการ</p>
+                <p className="text-xs sm:text-sm text-gray-500 mt-0.5 sm:mt-1">รายการ</p>
               </div>
-              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                <Receipt className="w-6 h-6 text-blue-600" />
+              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0 ml-2">
+                <Receipt className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
               </div>
             </div>
           </div>
-          
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+
+          <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-500">มูลค่ารวม</p>
-                <p className="text-3xl font-bold text-green-600 mt-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm font-medium text-gray-500">มูลค่ารวม</p>
+                <p className="text-xl sm:text-3xl font-bold text-green-600 mt-1 sm:mt-2 truncate">
                   {formatPrice(stats.totalAmount)}
                 </p>
-                <p className="text-sm text-gray-500 mt-1">บาท</p>
+                <p className="text-xs sm:text-sm text-gray-500 mt-0.5 sm:mt-1">บาท</p>
               </div>
-              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                <DollarSign className="w-6 h-6 text-green-600" />
+              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0 ml-2">
+                <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
               </div>
             </div>
           </div>
-          
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+
+          <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-500">ใช้งานได้</p>
-                <p className="text-3xl font-bold text-blue-600 mt-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm font-medium text-gray-500">ใช้งานได้</p>
+                <p className="text-xl sm:text-3xl font-bold text-blue-600 mt-1 sm:mt-2 truncate">
                   {stats.activeCredits.toLocaleString()}
                 </p>
-                <p className="text-sm text-gray-500 mt-1">แพ็คเกจ</p>
+                <p className="text-xs sm:text-sm text-gray-500 mt-0.5 sm:mt-1">แพ็คเกจ</p>
               </div>
-              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                <CheckCircle className="w-6 h-6 text-blue-600" />
+              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0 ml-2">
+                <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
               </div>
             </div>
           </div>
-          
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+
+          <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-500">หมดอายุ</p>
-                <p className="text-3xl font-bold text-red-600 mt-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm font-medium text-gray-500">หมดอายุ</p>
+                <p className="text-xl sm:text-3xl font-bold text-red-600 mt-1 sm:mt-2 truncate">
                   {stats.expiredCredits.toLocaleString()}
                 </p>
-                <p className="text-sm text-gray-500 mt-1">แพ็คเกจ</p>
+                <p className="text-xs sm:text-sm text-gray-500 mt-0.5 sm:mt-1">แพ็คเกจ</p>
               </div>
-              <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
-                <XCircle className="w-6 h-6 text-red-600" />
+              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-red-100 rounded-lg flex items-center justify-center flex-shrink-0 ml-2">
+                <XCircle className="w-5 h-5 sm:w-6 sm:h-6 text-red-600" />
               </div>
             </div>
           </div>
         </div>
 
         {/* Filters */}
-        <div className="bg-white p-6 rounded-xl shadow-sm mb-6">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-            {/* Search - Takes more space */}
-            <div className="lg:col-span-4">
+        <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm mb-6 overflow-visible">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 sm:gap-4 items-center">
+            {/* Search */}
+            <div className="sm:col-span-2 lg:col-span-4">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
                   type="text"
                   placeholder="ค้นหาชื่อ, รหัส, ใบเสร็จ..."
-                  className="input-base pl-10 text-base w-full"
+                  className="input-base pl-10 text-base w-full h-[42px]"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
             </div>
 
+            {/* Date Range Picker */}
+            <div className="sm:col-span-2 lg:col-span-4">
+              <DateRangePicker
+                value={dateRange}
+                onChange={(value) => setDateRange(value)}
+                placeholder="เลือกช่วงวันที่"
+              />
+            </div>
+
             {/* Course Filter */}
-            <div className="lg:col-span-2">
+            <div className="sm:col-span-1 lg:col-span-2">
               <select
-                className="input-base text-base w-full"
+                className="input-base text-base w-full h-[42px]"
                 value={selectedCourse}
                 onChange={(e) => setSelectedCourse(e.target.value)}
               >
@@ -320,9 +337,9 @@ const CreditHistoryPage = () => {
             </div>
 
             {/* Status Filter */}
-            <div className="lg:col-span-2">
+            <div className="sm:col-span-1 lg:col-span-2">
               <select
-                className="input-base text-base w-full"
+                className="input-base text-base w-full h-[42px]"
                 value={selectedStatus}
                 onChange={(e) => setSelectedStatus(e.target.value)}
               >
@@ -332,183 +349,220 @@ const CreditHistoryPage = () => {
                 <option value="depleted">ใช้หมดแล้ว</option>
               </select>
             </div>
-
-            {/* Date Range - Stacked on mobile, side by side on desktop */}
-            <div className="lg:col-span-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <input
-                  type="date"
-                  className="input-base text-base w-full"
-                  value={dateRange.start}
-                  onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
-                  placeholder="วันที่เริ่ม"
-                />
-                <input
-                  type="date"
-                  className="input-base text-base w-full"
-                  value={dateRange.end}
-                  onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
-                  placeholder="วันที่สิ้นสุด"
-                />
-              </div>
-            </div>
           </div>
         </div>
 
-        {/* History Table */}
+        {/* History List/Table */}
         {loading ? (
           <div className="flex justify-center py-12">
             <div className="spinner spinner-primary w-8 h-8"></div>
           </div>
         ) : credits.length === 0 ? (
-          <div className="bg-white rounded-xl shadow-sm p-12 text-center">
-            <Receipt className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-xl font-medium text-gray-900 mb-2">ไม่พบประวัติการซื้อ</h3>
-            <p className="text-gray-500 mb-6">ยังไม่มีการซื้อแพ็คเกจในช่วงเวลาที่เลือก</p>
+          <div className="bg-white rounded-xl shadow-sm p-8 sm:p-12 text-center">
+            <Receipt className="w-12 h-12 sm:w-16 sm:h-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg sm:text-xl font-medium text-gray-900 mb-2">ไม่พบประวัติการซื้อ</h3>
+            <p className="text-sm sm:text-base text-gray-500 mb-6">ยังไม่มีการซื้อแพ็คเกจในช่วงเวลาที่เลือก</p>
             <Link
               to="/credits/purchase"
-              className="btn-primary inline-flex items-center text-base"
+              className="btn-primary inline-flex items-center text-sm sm:text-base"
             >
-              <ShoppingBag className="w-5 h-5 mr-2" />
+              <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
               ซื้อแพ็คเกจ
             </Link>
           </div>
         ) : (
-          <div className="bg-white shadow-sm rounded-xl overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      เลขที่ใบเสร็จ
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      วันที่ซื้อ
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      นักเรียน
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      แพ็คเกจ
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      เครดิต
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      ยอดชำระ
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      ช่องทาง
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      สถานะ
-                    </th>
-                    <th className="px-6 py-4 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      การดำเนินการ
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {credits.map((credit) => (
-                    <tr key={credit.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <p className="text-sm font-medium text-gray-900">
-                          {credit.receiptNumber || '-'}
-                        </p>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <p className="text-sm text-gray-600">
-                          {formatDate(credit.paymentDate || credit.purchaseDate)}
-                        </p>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">
-                            {credit.studentName}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {credit.studentCode}
-                          </p>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">
-                            {credit.packageName}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {credit.courseName || credit.applicableCourseNames?.[0] || 'ไม่ระบุวิชา'}
+          <>
+            {/* Mobile Card View */}
+            <div className="sm:hidden space-y-3">
+              {credits.map((credit) => (
+                <div key={credit.id} className="bg-white rounded-xl shadow-sm p-4">
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-gray-900 truncate">{credit.studentName}</p>
+                      <p className="text-xs text-gray-500">{credit.studentCode}</p>
+                    </div>
+                    {getStatusBadge(credit.status)}
+                  </div>
 
-                          </p>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm">
-                          <div className="flex items-center">
-                            <span className="font-medium text-gray-900">
-                              {credit.remainingCredits}/{credit.totalCredits}
-                            </span>
-                            <span className="text-gray-500 ml-1">ครั้ง</span>
-                          </div>
-                          {credit.daysUntilExpiry !== null && credit.daysUntilExpiry <= 7 && credit.daysUntilExpiry > 0 && (
-                            <p className="text-xs text-orange-600 mt-1 flex items-center">
-                              <Clock className="w-3 h-3 mr-1" />
-                              หมดอายุใน {credit.daysUntilExpiry} วัน
-                            </p>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div>
-                          <p className="text-sm font-semibold text-gray-900">
-                            {formatPrice(credit.finalPrice)}
-                          </p>
-                          {credit.discountAmount > 0 && (
-                            <p className="text-xs text-green-600">
-                              ลด {formatPrice(credit.discountAmount)}
-                            </p>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {getPaymentMethodBadge(credit.paymentMethod)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {getStatusBadge(credit.status)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-center">
-                        <div className="flex items-center justify-center space-x-2">
-                          <Link
-                            to={`/credits/receipt/${credit.id}`}
-                            className="p-2 text-primary-600 hover:text-primary-700 hover:bg-primary-50 rounded-md transition-colors"
-                            title="ดูใบเสร็จ"
-                          >
-                            <Eye className="w-5 h-5" />
-                          </Link>
-                          <button
-                            onClick={() => window.print()}
-                            className="p-2 text-gray-600 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
-                            title="พิมพ์ใบเสร็จ"
-                          >
-                            <Printer className="w-5 h-5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">แพ็คเกจ</span>
+                      <span className="font-medium text-gray-900 text-right">{credit.packageName}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">เครดิต</span>
+                      <span className="font-medium text-gray-900">{credit.remainingCredits}/{credit.totalCredits} ครั้ง</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">ยอดชำระ</span>
+                      <span className="font-semibold text-green-600">{formatPrice(credit.finalPrice)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">วันที่ซื้อ</span>
+                      <span className="text-gray-600">{formatDate(credit.paymentDate || credit.purchaseDate)}</span>
+                    </div>
+                    {credit.daysUntilExpiry !== null && credit.daysUntilExpiry <= 7 && credit.daysUntilExpiry > 0 && (
+                      <p className="text-xs text-orange-600 flex items-center justify-end">
+                        <Clock className="w-3 h-3 mr-1" />
+                        หมดอายุใน {credit.daysUntilExpiry} วัน
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex justify-end mt-3 pt-3 border-t border-gray-100 space-x-2">
+                    <Link
+                      to={`/credits/receipt/${credit.id}`}
+                      className="p-2 text-primary-600 hover:bg-primary-50 rounded-md"
+                    >
+                      <Eye className="w-5 h-5" />
+                    </Link>
+                    <button
+                      onClick={() => window.print()}
+                      className="p-2 text-gray-600 hover:bg-gray-100 rounded-md"
+                    >
+                      <Printer className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
-          </div>
+
+            {/* Desktop Table View */}
+            <div className="hidden sm:block bg-white shadow-sm rounded-xl overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 lg:px-6 py-3 lg:py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        เลขที่ใบเสร็จ
+                      </th>
+                      <th className="px-4 lg:px-6 py-3 lg:py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        วันที่ซื้อ
+                      </th>
+                      <th className="px-4 lg:px-6 py-3 lg:py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        นักเรียน
+                      </th>
+                      <th className="px-4 lg:px-6 py-3 lg:py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        แพ็คเกจ
+                      </th>
+                      <th className="px-4 lg:px-6 py-3 lg:py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        เครดิต
+                      </th>
+                      <th className="px-4 lg:px-6 py-3 lg:py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        ยอดชำระ
+                      </th>
+                      <th className="px-4 lg:px-6 py-3 lg:py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        ช่องทาง
+                      </th>
+                      <th className="px-4 lg:px-6 py-3 lg:py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        สถานะ
+                      </th>
+                      <th className="px-4 lg:px-6 py-3 lg:py-4 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        การดำเนินการ
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {credits.map((credit) => (
+                      <tr key={credit.id} className="hover:bg-gray-50">
+                        <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
+                          <p className="text-sm font-medium text-gray-900">
+                            {credit.receiptNumber || '-'}
+                          </p>
+                        </td>
+                        <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
+                          <p className="text-sm text-gray-600">
+                            {formatDate(credit.paymentDate || credit.purchaseDate)}
+                          </p>
+                        </td>
+                        <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">
+                              {credit.studentName}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {credit.studentCode}
+                            </p>
+                          </div>
+                        </td>
+                        <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">
+                              {credit.packageName}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {credit.courseName || credit.applicableCourseNames?.[0] || 'ไม่ระบุวิชา'}
+                            </p>
+                          </div>
+                        </td>
+                        <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm">
+                            <div className="flex items-center">
+                              <span className="font-medium text-gray-900">
+                                {credit.remainingCredits}/{credit.totalCredits}
+                              </span>
+                              <span className="text-gray-500 ml-1">ครั้ง</span>
+                            </div>
+                            {credit.daysUntilExpiry !== null && credit.daysUntilExpiry <= 7 && credit.daysUntilExpiry > 0 && (
+                              <p className="text-xs text-orange-600 mt-1 flex items-center">
+                                <Clock className="w-3 h-3 mr-1" />
+                                หมดอายุใน {credit.daysUntilExpiry} วัน
+                              </p>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
+                          <div>
+                            <p className="text-sm font-semibold text-gray-900">
+                              {formatPrice(credit.finalPrice)}
+                            </p>
+                            {credit.discountAmount > 0 && (
+                              <p className="text-xs text-green-600">
+                                ลด {formatPrice(credit.discountAmount)}
+                              </p>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
+                          {getPaymentMethodBadge(credit.paymentMethod)}
+                        </td>
+                        <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
+                          {getStatusBadge(credit.status)}
+                        </td>
+                        <td className="px-4 lg:px-6 py-4 whitespace-nowrap text-center">
+                          <div className="flex items-center justify-center space-x-2">
+                            <Link
+                              to={`/credits/receipt/${credit.id}`}
+                              className="p-2 text-primary-600 hover:text-primary-700 hover:bg-primary-50 rounded-md transition-colors"
+                              title="ดูใบเสร็จ"
+                            >
+                              <Eye className="w-5 h-5" />
+                            </Link>
+                            <button
+                              onClick={() => window.print()}
+                              className="p-2 text-gray-600 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                              title="พิมพ์ใบเสร็จ"
+                            >
+                              <Printer className="w-5 h-5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
         )}
         
         {/* Add New Purchase Button */}
-        <div className="mt-8 text-center">
+        <div className="mt-6 sm:mt-8 text-center">
           <Link
             to="/credits/purchase"
-            className="btn-primary inline-flex items-center text-base"
+            className="btn-primary inline-flex items-center text-sm sm:text-base"
           >
-            <ShoppingBag className="w-5 h-5 mr-2" />
+            <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
             ซื้อแพ็คเกจเพิ่ม
           </Link>
         </div>

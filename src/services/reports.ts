@@ -1,8 +1,21 @@
 // src/services/reports.ts
 import { supabase } from './supabase'
 
+// Custom date range type
+export interface CustomDateRange {
+  start: string // YYYY-MM-DD
+  end: string   // YYYY-MM-DD
+}
+
 // Helper function to get date range
-const getDateRange = (timeRange: string) => {
+const getDateRange = (timeRange: string, customRange?: CustomDateRange) => {
+  if (timeRange === 'custom' && customRange) {
+    return {
+      start: new Date(customRange.start + 'T00:00:00'),
+      end: new Date(customRange.end + 'T23:59:59.999')
+    }
+  }
+
   const now = new Date()
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
@@ -64,8 +77,8 @@ function getPreviousDateRange(timeRange: string) {
 }
 
 // Get revenue stats
-export async function getRevenueStats(schoolId: string, timeRange: string) {
-  const { start, end } = getDateRange(timeRange)
+export async function getRevenueStats(schoolId: string, timeRange: string, customRange?: CustomDateRange) {
+  const { start, end } = getDateRange(timeRange, customRange)
   const startDate = start.toISOString().split('T')[0]
   const endDate = end.toISOString().split('T')[0]
 
@@ -130,8 +143,8 @@ export async function getRevenueStats(schoolId: string, timeRange: string) {
 }
 
 // Get student stats
-export async function getStudentStats(schoolId: string, timeRange: string) {
-  const { start, end } = getDateRange(timeRange)
+export async function getStudentStats(schoolId: string, timeRange: string, customRange?: CustomDateRange) {
+  const { start, end } = getDateRange(timeRange, customRange)
   const startDate = start.toISOString().split('T')[0]
   const endDate = end.toISOString().split('T')[0]
 
@@ -169,8 +182,8 @@ export async function getStudentStats(schoolId: string, timeRange: string) {
 }
 
 // Get attendance stats
-export async function getAttendanceStats(schoolId: string, timeRange: string) {
-  const { start, end } = getDateRange(timeRange)
+export async function getAttendanceStats(schoolId: string, timeRange: string, customRange?: CustomDateRange) {
+  const { start, end } = getDateRange(timeRange, customRange)
   const startDate = start.toISOString().split('T')[0]
   const endDate = end.toISOString().split('T')[0]
 
@@ -229,8 +242,8 @@ export async function getAttendanceStats(schoolId: string, timeRange: string) {
 }
 
 // Get credit stats
-export async function getCreditStats(schoolId: string, timeRange: string) {
-  const { start, end } = getDateRange(timeRange)
+export async function getCreditStats(schoolId: string, timeRange: string, customRange?: CustomDateRange) {
+  const { start, end } = getDateRange(timeRange, customRange)
 
   // Get all student credits
   const { data: creditsData } = await supabase
@@ -275,8 +288,8 @@ export async function getCreditStats(schoolId: string, timeRange: string) {
 }
 
 // Get top courses
-export async function getTopCourses(schoolId: string, timeRange: string, topN: number = 5) {
-  const { start, end } = getDateRange(timeRange)
+export async function getTopCourses(schoolId: string, timeRange: string, topN: number = 5, customRange?: CustomDateRange) {
+  const { start, end } = getDateRange(timeRange, customRange)
   const startDate = start.toISOString().split('T')[0]
   const endDate = end.toISOString().split('T')[0]
 
@@ -332,12 +345,12 @@ export async function getTopCourses(schoolId: string, timeRange: string, topN: n
 }
 
 // Export report data
-export async function exportReportData(schoolId: string, reportType: string, timeRange: string) {
-  const revenue = await getRevenueStats(schoolId, timeRange)
-  const students = await getStudentStats(schoolId, timeRange)
-  const attendance = await getAttendanceStats(schoolId, timeRange)
-  const credits = await getCreditStats(schoolId, timeRange)
-  const topCourses = await getTopCourses(schoolId, timeRange)
+export async function exportReportData(schoolId: string, reportType: string, timeRange: string, customRange?: CustomDateRange) {
+  const revenue = await getRevenueStats(schoolId, timeRange, customRange)
+  const students = await getStudentStats(schoolId, timeRange, customRange)
+  const attendance = await getAttendanceStats(schoolId, timeRange, customRange)
+  const credits = await getCreditStats(schoolId, timeRange, customRange)
+  const topCourses = await getTopCourses(schoolId, timeRange, 5, customRange)
 
   return {
     reportType,

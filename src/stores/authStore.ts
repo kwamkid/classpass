@@ -148,7 +148,15 @@ export const useAuthStore = create<AuthState>()(
               }
               isFirstEvent = false
 
-              // For subsequent events (TOKEN_REFRESHED, etc.) — fetch fresh user data
+              // For subsequent events (TOKEN_REFRESHED, etc.)
+              // If we already have user data, just mark initialized — no need to re-fetch
+              const currentUser = get()
+              if (currentUser.user && currentUser.isAuthenticated) {
+                set({ isInitialized: true })
+                return
+              }
+
+              // Only fetch from DB if we don't have user data yet
               const userData = await authService.getUserData(session.user.id)
               if (userData) {
                 set({
