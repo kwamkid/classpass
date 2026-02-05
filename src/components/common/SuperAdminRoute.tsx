@@ -7,10 +7,10 @@ interface SuperAdminRouteProps {
 }
 
 export default function SuperAdminRoute({ children }: SuperAdminRouteProps) {
-  const { user, isAuthenticated, isLoading } = useAuthStore()
-  
-  // Show loading spinner while checking auth
-  if (isLoading) {
+  const { user, isAuthenticated, isInitialized } = useAuthStore()
+
+  // Show loading spinner while auth is initializing (and no cached data)
+  if (!isInitialized && !isAuthenticated) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <div className="text-center">
@@ -20,18 +20,18 @@ export default function SuperAdminRoute({ children }: SuperAdminRouteProps) {
       </div>
     )
   }
-  
+
   // Check if user is authenticated and is super admin
   if (!isAuthenticated || !user) {
     return <Navigate to="/superadmin" replace />
   }
-  
+
   // Check if user has super admin privileges
   if (!user.isSuperAdmin && user.role !== 'superadmin') {
     console.warn('Unauthorized access attempt to super admin area by:', user.email)
     return <Navigate to="/" replace />
   }
-  
+
   // User is super admin, allow access
   return <>{children}</>
 }

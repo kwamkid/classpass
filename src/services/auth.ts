@@ -32,148 +32,117 @@ export interface User {
   lastLogin?: any
 }
 
-// Get user data from Supabase
-export const getUserData = async (uid: string): Promise<User | null> => {
+// Shared AbortController — allows cancelling any in-flight getUserData query
+let activeGetUserController: AbortController | null = null
+
+// Cancel any in-flight getUserData query
+export const cancelPendingUserQuery = () => {
+  if (activeGetUserController) {
+    activeGetUserController.abort()
+    activeGetUserController = null
+  }
+}
+
+// Get user data from Supabase with AbortController timeout
+export const getUserData = async (uid: string, signal?: AbortSignal): Promise<User | null> => {
   try {
+    // Create a new controller for timeout, but also respect external signal
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 5000)
+
+    // If external signal aborts, also abort this controller
+    if (signal) {
+      signal.addEventListener('abort', () => controller.abort(), { once: true })
+    }
+
+    // Track this as the active query
+    activeGetUserController = controller
+
     const { data, error } = await supabase
       .from('users')
       .select('*')
       .eq('id', uid)
+      .abortSignal(controller.signal)
       .single()
+
+    clearTimeout(timeoutId)
+    if (activeGetUserController === controller) {
+      activeGetUserController = null
+    }
 
     if (error || !data) return null
     return dbUserToUser(data as DbUser) as User
-  } catch (error) {
-    console.error('Error getting user data:', error)
+  } catch (error: any) {
+    if (error.name !== 'AbortError') {
+      console.error('Error getting user data:', error)
+    }
     return null
   }
-}
-
-// Get user profile
-export const getUserProfile = async (userId: string): Promise<User | null> => {
-  return getUserData(userId)
 }
 
 // Login with email and password
 export const login = async ({ email, password }: LoginCredentials): Promise<{ user: User }> => {
-  console.log('🔐 Attempting login for:', email)
+  // Cancel any in-flight getUserData from initAuth listener
+  cancelPendingUserQuery()
 
-  try {
-    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
+  const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  })
+
+  if (authError) {
+    if (authError.message.includes('Invalid login credentials')) {
+      throw new Error('อีเมลหรือรหัสผ่านไม่ถูกต้อง')
+    }
+    if (authError.message.includes('Email not confirmed')) {
+      throw new Error('กรุณายืนยันอีเมลก่อนเข้าสู่ระบบ')
+    }
+    throw new Error(authError.message)
+  }
+
+  if (!authData.user) {
+    throw new Error('ไม่พบข้อมูลผู้ใช้')
+  }
+
+  // Force session sync — ensures JWT is propagated before querying
+  await supabase.auth.getSession()
+
+  // Get user data from users table
+  const userData = await getUserData(authData.user.id)
+
+  if (!userData) {
+    throw new Error('ไม่พบข้อมูลผู้ใช้')
+  }
+
+  if (!userData.isActive) {
+    throw new Error('บัญชีนี้ถูกระงับการใช้งาน')
+  }
+
+  // Update last login (fire-and-forget)
+  supabase
+    .from('users')
+    .update({ last_login: new Date().toISOString() })
+    .eq('id', authData.user.id)
+    .then(({ error }) => {
+      if (error) console.warn('Failed to update last_login:', error.message)
     })
 
-    if (authError) {
-      console.error('❌ Auth error:', authError)
-      if (authError.message.includes('Invalid login credentials')) {
-        throw new Error('อีเมลหรือรหัสผ่านไม่ถูกต้อง')
-      }
-      if (authError.message.includes('Email not confirmed')) {
-        throw new Error('กรุณายืนยันอีเมลก่อนเข้าสู่ระบบ')
-      }
-      throw new Error(authError.message)
-    }
-
-    if (!authData.user) {
-      throw new Error('ไม่พบข้อมูลผู้ใช้')
-    }
-
-    console.log('✅ Auth successful:', authData.user.id)
-
-    // Get user data from users table
-    const userData = await getUserData(authData.user.id)
-
-    if (!userData) {
-      console.error('❌ User document not found')
-      throw new Error('ไม่พบข้อมูลผู้ใช้')
-    }
-
-    if (!userData.isActive) {
-      throw new Error('บัญชีนี้ถูกระงับการใช้งาน')
-    }
-
-    // Update last login
-    await supabase
-      .from('users')
-      .update({ last_login: new Date().toISOString() })
-      .eq('id', authData.user.id)
-
-    console.log('✅ User data retrieved:', userData)
-    return { user: userData }
-  } catch (error: any) {
-    console.error('❌ Login error:', error)
-    throw error
-  }
+  return { user: userData }
 }
 
 // Logout
 export const logout = async (): Promise<void> => {
-  try {
-    await supabase.auth.signOut()
-    console.log('✅ Logged out successfully')
-  } catch (error) {
-    console.error('❌ Logout error:', error)
-    throw error
-  }
+  await supabase.auth.signOut()
 }
 
 // Reset password
 export const resetPassword = async (email: string): Promise<void> => {
-  try {
-    const { error } = await supabase.auth.resetPasswordForEmail(email)
-    if (error) {
-      if (error.message.includes('User not found')) {
-        throw new Error('ไม่พบบัญชีผู้ใช้นี้')
-      }
-      throw new Error(error.message)
+  const { error } = await supabase.auth.resetPasswordForEmail(email)
+  if (error) {
+    if (error.message.includes('User not found')) {
+      throw new Error('ไม่พบบัญชีผู้ใช้นี้')
     }
-  } catch (error: any) {
-    throw error
-  }
-}
-
-// Get current user
-export const getCurrentUser = async (): Promise<User | null> => {
-  const { data: { user: authUser } } = await supabase.auth.getUser()
-  console.log('🔥 Supabase current user:', authUser?.email || 'null')
-
-  if (authUser) {
-    return getUserData(authUser.id)
-  }
-  return null
-}
-
-// Subscribe to auth state changes
-export const subscribeToAuthState = (callback: (user: User | null) => void) => {
-  const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-    console.log('🔥 Auth state changed:', event, session?.user?.email || 'null')
-    if (session?.user) {
-      const userData = await getUserData(session.user.id)
-      callback(userData)
-    } else {
-      callback(null)
-    }
-  })
-
-  // Return unsubscribe function (compatible with existing usage)
-  return () => subscription.unsubscribe()
-}
-
-// Check if user is authenticated
-export const isAuthenticated = async (): Promise<boolean> => {
-  const { data: { session } } = await supabase.auth.getSession()
-  return !!session
-}
-
-// Refresh token (not needed with Supabase auto-refresh, kept for compatibility)
-export const refreshToken = async (): Promise<string | null> => {
-  try {
-    const { data: { session } } = await supabase.auth.getSession()
-    return session?.access_token || null
-  } catch (error) {
-    console.error('Error refreshing token:', error)
-    return null
+    throw new Error(error.message)
   }
 }
 
@@ -183,9 +152,6 @@ export async function registerSchool(data: RegisterData): Promise<void> {
   let schoolId: string | null = null
 
   try {
-    console.log('🚀 Starting registration...')
-    console.log('📧 Creating user with email:', data.email)
-
     // 1. Create Supabase Auth user
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: data.email,
@@ -211,7 +177,6 @@ export async function registerSchool(data: RegisterData): Promise<void> {
     }
 
     authUserId = authData.user.id
-    console.log('✅ Auth user created:', authUserId)
 
     // 2. Create unique school ID
     schoolId = `school_${authUserId}_${Date.now()}`
@@ -241,11 +206,9 @@ export async function registerSchool(data: RegisterData): Promise<void> {
     })
 
     if (schoolError) {
-      console.error('❌ School creation error:', schoolError)
+      console.error('School creation error:', schoolError)
       throw new Error('ไม่สามารถสร้างโรงเรียนได้')
     }
-
-    console.log('✅ School created:', schoolId)
 
     // 4. Create user document
     const { error: userError } = await supabase.from('users').insert({
@@ -260,22 +223,18 @@ export async function registerSchool(data: RegisterData): Promise<void> {
     })
 
     if (userError) {
-      console.error('❌ User document creation error:', userError)
+      console.error('User document creation error:', userError)
       throw new Error('ไม่สามารถสร้างข้อมูลผู้ใช้ได้')
     }
-
-    console.log('✅ User document created')
-    console.log('🎉 Registration completed successfully')
   } catch (error: any) {
-    console.error('❌ Registration error:', error)
+    console.error('Registration error:', error)
 
     // Rollback: Delete school if created
     if (schoolId) {
       try {
         await supabase.from('schools').delete().eq('id', schoolId)
-        console.log('🔄 Rolled back school document')
       } catch (deleteError) {
-        console.error('Error deleting school:', deleteError)
+        console.error('Error deleting school during rollback:', deleteError)
       }
     }
 

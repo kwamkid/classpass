@@ -61,7 +61,7 @@ const ForgotPasswordPage = () => {
   // If email sent successfully
   if (emailSent) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary-50 to-white flex items-center justify-center p-4">
+      <div className="min-h-dvh bg-gradient-to-br from-primary-50 to-white flex items-center justify-center p-4">
         <div className="max-w-md w-full space-y-6">
           {/* Success Card */}
           <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-8 text-center">
@@ -119,7 +119,7 @@ const ForgotPasswordPage = () => {
 
   // Reset password form
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 to-white flex items-center justify-center p-4">
+    <div className="min-h-dvh bg-gradient-to-br from-primary-50 to-white flex items-center justify-center p-4">
       <div className="max-w-md w-full space-y-6">
         {/* Back to login */}
         <Link 

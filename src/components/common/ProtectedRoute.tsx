@@ -8,11 +8,11 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
-  const { user, isAuthenticated, isLoading } = useAuthStore()
+  const { user, isAuthenticated, isInitialized } = useAuthStore()
   const location = useLocation()
-  
-  // Show loading spinner while checking auth
-  if (isLoading) {
+
+  // Show loading spinner while auth is initializing (and no cached data)
+  if (!isInitialized && !isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -22,17 +22,17 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
       </div>
     )
   }
-  
+
   // Redirect to login if not authenticated
   if (!isAuthenticated || !user) {
     return <Navigate to="/login" state={{ from: location }} replace />
   }
-  
+
   // If user is super admin, redirect to super admin dashboard
   if (user.isSuperAdmin || user.role === 'superadmin') {
     return <Navigate to="/superadmin/dashboard" replace />
   }
-  
+
   // Check role permissions if specified
   if (allowedRoles && !allowedRoles.includes(user.role)) {
     return (
@@ -40,7 +40,7 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">ไม่มีสิทธิ์เข้าถึง</h1>
           <p className="text-gray-600 mb-4">คุณไม่มีสิทธิ์ในการเข้าถึงหน้านี้</p>
-          <button 
+          <button
             onClick={() => window.history.back()}
             className="btn-primary"
           >
@@ -50,6 +50,6 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
       </div>
     )
   }
-  
+
   return <>{children}</>
 }

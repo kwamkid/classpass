@@ -1,6 +1,7 @@
 // src/pages/settings/SettingsPage.tsx
 import { useState } from 'react'
-import { 
+import { useNavigate } from 'react-router-dom'
+import {
   Building,
   User,
   Bell,
@@ -25,6 +26,7 @@ import toast from 'react-hot-toast'
 import Layout from '../../components/layout/Layout'
 
 const SettingsPage = () => {
+  const navigate = useNavigate()
   const { user } = useAuthStore()
   const { school, loadSchool } = useSchoolStore()
   const { resetOnboarding, isOnboardingComplete, completeStep } = useOnboardingStore()
@@ -428,11 +430,11 @@ const SettingsPage = () => {
                 {/* การดำเนินการ */}
                 <div className="mt-6 pt-6 border-t border-gray-200">
                   <div className="flex flex-wrap gap-3">
-                    <button className="btn-secondary">
+                    <button onClick={() => navigate('/profile/edit')} className="btn-secondary">
                       <Edit className="w-4 h-4 mr-2" />
                       แก้ไขข้อมูล
                     </button>
-                    <button className="btn-secondary">
+                    <button onClick={() => navigate('/profile/change-password')} className="btn-secondary">
                       <Key className="w-4 h-4 mr-2" />
                       เปลี่ยนรหัสผ่าน
                     </button>
@@ -449,7 +451,8 @@ const SettingsPage = () => {
                 </h2>
                 
                 <div className="space-y-4">
-                  <button className="btn-secondary">
+                  <button onClick={() => navigate('/profile/change-password')} className="btn-secondary">
+                    <Key className="w-4 h-4 mr-2" />
                     เปลี่ยนรหัสผ่าน
                   </button>
                   

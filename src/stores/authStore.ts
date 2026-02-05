@@ -1,6 +1,7 @@
 // src/stores/authStore.ts
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
+import { supabase } from '../services/supabase'
 import * as authService from '../services/auth'
 
 // Define User type with superadmin role
@@ -23,151 +24,157 @@ interface User {
 
 interface AuthState {
   user: User | null
-  isLoading: boolean
   isAuthenticated: boolean
+  isInitialized: boolean
   error: string | null
-  
+
   // Actions
   login: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
   resetPassword: (email: string) => Promise<void>
-  checkAuth: () => Promise<void>
+  initAuth: () => () => void
   clearError: () => void
   setUser: (user: User | null) => void
-  setLoading: (loading: boolean) => void
 }
+
+// Flag to prevent onAuthStateChange from interfering during login/logout
+let isAuthActionInProgress = false
 
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
       user: null,
-      isLoading: false,
       isAuthenticated: false,
+      isInitialized: false,
       error: null,
-      
+
       login: async (email: string, password: string) => {
-        console.log('🔐 Login attempt with:', email)
-        set({ isLoading: true, error: null })
+        isAuthActionInProgress = true
+        set({ error: null })
         try {
           const { user } = await authService.login({ email, password })
-          console.log('✅ Login successful:', user)
-          set({ 
-            user: user as User, 
-            isAuthenticated: true, 
-            isLoading: false,
-            error: null 
+          set({
+            user: user as User,
+            isAuthenticated: true,
+            isInitialized: true,
+            error: null
           })
         } catch (error: any) {
-          console.error('❌ Login failed:', error)
-          set({ 
+          set({
             error: error.message || 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ',
-            isLoading: false,
             isAuthenticated: false,
             user: null
           })
           throw error
+        } finally {
+          isAuthActionInProgress = false
         }
       },
-      
+
       logout: async () => {
-        console.log('🚪 Logging out...')
-        set({ isLoading: true })
+        isAuthActionInProgress = true
         try {
           await authService.logout()
-          console.log('✅ Logout successful')
-          set({ 
-            user: null, 
-            isAuthenticated: false, 
-            isLoading: false,
-            error: null 
-          })
-        } catch (error: any) {
-          console.error('❌ Logout error:', error)
-          set({ 
-            error: error.message || 'เกิดข้อผิดพลาดในการออกจากระบบ',
-            isLoading: false 
-          })
-          throw error
-        }
-      },
-      
-      resetPassword: async (email: string) => {
-        set({ isLoading: true, error: null })
-        try {
-          await authService.resetPassword(email)
-          set({ isLoading: false })
-        } catch (error: any) {
-          set({ 
-            error: error.message || 'เกิดข้อผิดพลาดในการรีเซ็ตรหัสผ่าน',
-            isLoading: false 
-          })
-          throw error
-        }
-      },
-      
-      checkAuth: async () => {
-        console.log('🔍 Checking auth state...')
-        const currentState = get()
-        console.log('📊 Current state:', { 
-          hasUser: !!currentState.user, 
-          isAuthenticated: currentState.isAuthenticated,
-          userId: currentState.user?.id 
-        })
-        
-        set({ isLoading: true })
-        try {
-          const user = await authService.getCurrentUser()
-          console.log('Current user:', user)
-          
-          set({ 
-            user: user as User | null, 
-            isAuthenticated: !!user,
-            isLoading: false,
+          set({
+            user: null,
+            isAuthenticated: false,
             error: null
           })
-        } catch (error) {
-          console.error('❌ Check auth error:', error)
-          set({ 
-            user: null, 
-            isAuthenticated: false,
-            isLoading: false 
+        } catch (error: any) {
+          set({
+            error: error.message || 'เกิดข้อผิดพลาดในการออกจากระบบ'
           })
+          throw error
+        } finally {
+          isAuthActionInProgress = false
         }
       },
-      
+
+      resetPassword: async (email: string) => {
+        set({ error: null })
+        try {
+          await authService.resetPassword(email)
+        } catch (error: any) {
+          set({
+            error: error.message || 'เกิดข้อผิดพลาดในการรีเซ็ตรหัสผ่าน'
+          })
+          throw error
+        }
+      },
+
+      initAuth: () => {
+        let isFirstEvent = true
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+          async (event, session) => {
+            // Skip if login/logout action is in progress — they handle state themselves
+            if (isAuthActionInProgress) {
+              return
+            }
+
+            if (event === 'SIGNED_OUT') {
+              set({ user: null, isAuthenticated: false, isInitialized: true, error: null })
+              return
+            }
+
+            if (session?.user) {
+              const currentState = get()
+
+              // On first event (INITIAL_SESSION / SIGNED_IN from persisted session):
+              // If we already have cached user data, just mark initialized — no DB query
+              if (isFirstEvent && currentState.user && currentState.isAuthenticated) {
+                isFirstEvent = false
+                set({ isInitialized: true })
+                return
+              }
+              isFirstEvent = false
+
+              // For subsequent events (TOKEN_REFRESHED, etc.) — fetch fresh user data
+              const userData = await authService.getUserData(session.user.id)
+              if (userData) {
+                set({
+                  user: userData as User,
+                  isAuthenticated: true,
+                  isInitialized: true,
+                  error: null
+                })
+              } else {
+                // User exists in auth but not in users table
+                set({ user: null, isAuthenticated: false, isInitialized: true })
+              }
+            } else {
+              isFirstEvent = false
+              // No session
+              set({ user: null, isAuthenticated: false, isInitialized: true })
+            }
+          }
+        )
+
+        // Return cleanup function
+        return () => {
+          subscription.unsubscribe()
+        }
+      },
+
       clearError: () => {
         set({ error: null })
       },
-      
+
       setUser: (user: User | null) => {
-        console.log('👤 Setting user:', user?.email)
-        set({ 
-          user, 
+        set({
+          user,
           isAuthenticated: !!user,
           error: null
         })
       },
-      
-      setLoading: (loading: boolean) => {
-        set({ isLoading: loading })
-      }
     }),
     {
       name: 'classpass-auth',
       storage: createJSONStorage(() => localStorage),
-      onRehydrateStorage: () => (state) => {
-        console.log('💾 Rehydrating from localStorage:', {
-          hasUser: !!state?.user,
-          isAuthenticated: state?.isAuthenticated,
-          userEmail: state?.user?.email
-        })
-      }
+      partialize: (state) => ({
+        user: state.user,
+        isAuthenticated: state.isAuthenticated,
+      }),
     }
   )
 )
-
-// Subscribe to auth state changes
-authService.subscribeToAuthState((user) => {
-  console.log('🔄 Auth state changed:', user?.email)
-  useAuthStore.getState().setUser(user as User | null)
-})

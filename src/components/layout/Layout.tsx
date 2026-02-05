@@ -121,11 +121,11 @@ const Layout = ({ children }: LayoutProps) => {
     {
       title: 'ระบบ',
       items: [
-        { 
-          path: '/users', 
-          icon: UserCog, 
+        {
+          path: '/users',
+          icon: UserCog,
           label: 'จัดการผู้ใช้',
-          roles: ['owner', 'admin'],
+          roles: ['owner'],
           color: 'text-purple-600'
         },
         { 
@@ -185,7 +185,7 @@ const Layout = ({ children }: LayoutProps) => {
   }
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-dvh bg-gray-50">
       {/* Sidebar for desktop */}
       <div className="hidden lg:flex lg:flex-shrink-0">
         <div className="flex flex-col w-72">
@@ -311,7 +311,7 @@ const Layout = ({ children }: LayoutProps) => {
       )}
 
       {/* Main content area */}
-      <div className="flex flex-col flex-1 overflow-hidden">
+      <div className="flex flex-col flex-1 min-h-0">
         {/* Top header */}
         <header className="bg-white shadow-sm border-b border-gray-200">
           <div className="px-4 sm:px-6 lg:px-8">
@@ -405,7 +405,7 @@ const Layout = ({ children }: LayoutProps) => {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto bg-gray-50">
+        <main className="flex-1 overflow-y-auto bg-gray-50 pb-safe">
           {children}
         </main>
       </div>

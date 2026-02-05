@@ -23,6 +23,8 @@
     font-weight: 400;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* Prevent pull-to-refresh and bounce on mobile */
+    overscroll-behavior: none;
   }
 
   /* เพิ่มบรรทัดที่ 177-185 (ใน @layer utilities) */
@@ -226,6 +228,15 @@
   }
 }
 
+/* Mobile safe areas - always apply for devices that need them */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
 /* Mobile specific styles */
 @media (max-width: 640px) {
   body {
@@ -234,15 +245,6 @@
 
   .container {
     @apply px-4;
-  }
-
-  /* Mobile safe areas */
-  .pb-safe {
-    padding-bottom: env(safe-area-inset-bottom, 20px);
-  }
-
-  .pt-safe {
-    padding-top: env(safe-area-inset-top, 20px);
   }
 }
 

@@ -49,7 +49,7 @@ const SeedDemoPage = () => {
   }
   
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-8">
+    <div className="min-h-dvh bg-gray-900 text-white p-8">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="mb-8">

@@ -79,7 +79,7 @@ const RegisterPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 to-white flex items-center justify-center p-4">
+    <div className="min-h-dvh bg-gradient-to-br from-primary-50 to-white flex items-center justify-center p-4">
       <div className="max-w-md w-full space-y-6">
         {/* Back to home */}
         <Link 
@@ -92,9 +92,7 @@ const RegisterPage = () => {
 
         {/* Logo & Title */}
         <div className="text-center">
-          <div className="mx-auto h-16 w-16 bg-primary-500 rounded-xl flex items-center justify-center mb-4">
-            <span className="text-white font-bold text-2xl">C</span>
-          </div>
+          <img src="/logo.svg" alt="ClassPass" className="mx-auto h-16 w-16 mb-4" />
           <h1 className="text-3xl font-bold text-gray-900 mb-2">สร้างบัญชี ClassPass ใหม่</h1>
           <p className="text-gray-600">เริ่มต้นใช้งานฟรี ไม่ต้องใช้บัตรเครดิต</p>
         </div>

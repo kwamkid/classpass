@@ -93,7 +93,7 @@ const Dashboard = () => {
   if (loading) {
     return (
       <Layout>
-        <div className="flex items-center justify-center min-h-screen">
+        <div className="flex items-center justify-center h-full">
           <div className="text-center">
             <Loader2 className="w-8 h-8 animate-spin text-primary-500 mx-auto mb-4" />
             <p className="text-gray-600">กำลังโหลดข้อมูล...</p>

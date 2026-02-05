@@ -265,54 +265,42 @@ const CoursesPage = () => {
               <Link
                 key={course.id}
                 to={`/courses/${course.id}`}
-                className="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow overflow-hidden"
+                className="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow p-5"
               >
-                {/* Course Image */}
-                <div className="h-48 bg-gradient-to-br from-primary-100 to-primary-50 relative">
-                  {course.coverImage ? (
-                    <img 
-                      src={course.coverImage} 
-                      alt={course.name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="flex items-center justify-center h-full">
-                      <BookOpen className="w-16 h-16 text-primary-400" />
+                {/* Course Header */}
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex items-start space-x-3 flex-1 min-w-0">
+                    <div className="flex-shrink-0 w-10 h-10 bg-primary-50 rounded-lg flex items-center justify-center">
+                      <BookOpen className="w-5 h-5 text-primary-600" />
                     </div>
-                  )}
-                  <div className="absolute top-3 right-3">
-                    {getCategoryBadge(course.category)}
-                  </div>
-                </div>
-
-                {/* Course Info */}
-                <div className="p-5">
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                       <h3 className="text-lg font-semibold text-gray-900 line-clamp-1">
                         {course.name}
                       </h3>
                       <p className="text-sm text-gray-500">รหัส: {course.code}</p>
                     </div>
-                    {getStatusBadge(course.status)}
                   </div>
+                  {getStatusBadge(course.status)}
+                </div>
 
-                  <p className="text-sm text-gray-600 line-clamp-2 mb-4">
-                    {course.description || 'ไม่มีคำอธิบาย'}
-                  </p>
+                <p className="text-sm text-gray-600 line-clamp-2 mb-3">
+                  {course.description || 'ไม่มีคำอธิบาย'}
+                </p>
 
-                  {/* Course Details */}
+                {/* Tags & Details */}
+                <div className="flex items-center justify-between">
+                  {getCategoryBadge(course.category)}
                   <div className="flex items-center text-gray-600 text-sm">
-                    <Users className="w-4 h-4 mr-2" />
-                    <span>นักเรียน {courseStudentCounts[course.id] || 0} คน</span>
+                    <Users className="w-4 h-4 mr-1" />
+                    <span>{courseStudentCounts[course.id] || 0} คน</span>
                   </div>
+                </div>
 
-                  {/* Action Button */}
-                  <div className="mt-4 pt-4 border-t border-gray-100">
-                    <span className="text-primary-600 hover:text-primary-700 text-sm font-medium">
-                      ดูรายละเอียด →
-                    </span>
-                  </div>
+                {/* Action Button */}
+                <div className="mt-3 pt-3 border-t border-gray-100">
+                  <span className="text-primary-600 hover:text-primary-700 text-sm font-medium">
+                    ดูรายละเอียด →
+                  </span>
                 </div>
               </Link>
             ))}

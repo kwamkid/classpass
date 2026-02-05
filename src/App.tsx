@@ -45,7 +45,7 @@ const ChangePasswordPage = lazy(() => import('./pages/profile/ChangePasswordPage
 
 // Loading component
 const PageLoader = () => (
-  <div className="min-h-screen flex items-center justify-center">
+  <div className="min-h-dvh flex items-center justify-center">
     <div className="text-center">
       <div className="spinner spinner-primary w-8 h-8 mx-auto mb-4"></div>
       <p className="text-gray-600">กำลังโหลด...</p>
@@ -54,22 +54,19 @@ const PageLoader = () => (
 )
 
 function App() {
-  const { checkAuth, user, isLoading } = useAuthStore()
+  const { initAuth, user, isAuthenticated, isInitialized } = useAuthStore()
   const { loadSchool } = useSchoolStore()
-  
-  // Check authentication status on app load
+
+  // Initialize auth listener on app load
   useEffect(() => {
-    const initAuth = async () => {
-      await checkAuth()
-    }
-    initAuth()
-  }, [checkAuth])
+    const cleanup = initAuth()
+    return cleanup
+  }, [])
   
   // Load school data when user is authenticated (but NOT for super admin)
   useEffect(() => {
     // Skip loading school for super admin
     if (user?.isSuperAdmin || user?.role === 'superadmin') {
-      console.log('Skipping school load for super admin')
       return
     }
     
@@ -79,8 +76,8 @@ function App() {
     }
   }, [user, loadSchool])
   
-  // Show loading spinner while checking auth
-  if (isLoading) {
+  // Show loading spinner only if not initialized AND no cached data
+  if (!isInitialized && !isAuthenticated) {
     return <PageLoader />
   }
   

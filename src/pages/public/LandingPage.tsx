@@ -10,7 +10,7 @@ import {
 
 const LandingPage = () => {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-white">
+    <div className="min-h-dvh bg-gradient-to-br from-orange-50 to-white">
       {/* Navigation */}
       <nav className="bg-white shadow-sm">
          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
