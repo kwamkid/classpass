@@ -30,15 +30,13 @@ interface AuthState {
 
   // Actions
   login: (email: string, password: string) => Promise<void>
+  register: (data: authService.RegisterData) => Promise<void>
   logout: () => Promise<void>
   resetPassword: (email: string) => Promise<void>
   initAuth: () => () => void
   clearError: () => void
   setUser: (user: User | null) => void
 }
-
-// Flag to prevent onAuthStateChange from interfering during login/logout
-let isAuthActionInProgress = false
 
 export const useAuthStore = create<AuthState>()(
   persist(
@@ -49,7 +47,7 @@ export const useAuthStore = create<AuthState>()(
       error: null,
 
       login: async (email: string, password: string) => {
-        isAuthActionInProgress = true
+        authService.setAuthActionInProgress(true)
         set({ error: null })
         try {
           const { user } = await authService.login({ email, password })
@@ -67,12 +65,33 @@ export const useAuthStore = create<AuthState>()(
           })
           throw error
         } finally {
-          isAuthActionInProgress = false
+          authService.setAuthActionInProgress(false)
+        }
+      },
+
+      register: async (data: authService.RegisterData) => {
+        // isAuthActionInProgress is set inside registerSchool itself
+        set({ error: null })
+        try {
+          const { user } = await authService.registerSchool(data)
+          set({
+            user: user as User,
+            isAuthenticated: true,
+            isInitialized: true,
+            error: null
+          })
+        } catch (error: any) {
+          set({
+            error: error.message || 'เกิดข้อผิดพลาดในการลงทะเบียน',
+            isAuthenticated: false,
+            user: null
+          })
+          throw error
         }
       },
 
       logout: async () => {
-        isAuthActionInProgress = true
+        authService.setAuthActionInProgress(true)
         try {
           await authService.logout()
           set({
@@ -86,7 +105,7 @@ export const useAuthStore = create<AuthState>()(
           })
           throw error
         } finally {
-          isAuthActionInProgress = false
+          authService.setAuthActionInProgress(false)
         }
       },
 
@@ -107,8 +126,8 @@ export const useAuthStore = create<AuthState>()(
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
           async (event, session) => {
-            // Skip if login/logout action is in progress — they handle state themselves
-            if (isAuthActionInProgress) {
+            // Skip if login/logout/register action is in progress — they handle state themselves
+            if (authService.isAuthActionInProgress) {
               return
             }
 

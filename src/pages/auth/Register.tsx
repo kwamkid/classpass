@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Building, Mail, Lock, Eye, EyeOff, Loader2, ArrowLeft } from 'lucide-react'
-import * as authService from '../../services/auth'
+import { useAuthStore } from '../../stores/authStore'
 import toast from 'react-hot-toast'
 
 // Validation schema
@@ -26,6 +26,7 @@ type RegisterFormData = z.infer<typeof registerSchema>
 
 const RegisterPage = () => {
   const navigate = useNavigate()
+  const { register: registerUser } = useAuthStore()
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
@@ -46,30 +47,27 @@ const RegisterPage = () => {
     try {
       setLoading(true)
       
-      console.log('📝 Form submitted:', { ...data, password: '***' })
-      
-      await authService.registerSchool({
+      await registerUser({
         email: data.email,
         password: data.password,
         firstName: data.firstName,
         lastName: data.lastName,
         schoolName: data.schoolName
       })
-      
+
       toast.success('ลงทะเบียนสำเร็จ! กำลังเข้าสู่ระบบ...')
-      
-      setTimeout(() => {
-        navigate('/dashboard')
-      }, 1500)
+      navigate('/dashboard')
       
     } catch (error: any) {
       console.error('Registration error:', error)
-      
+
       if (error.message?.includes('อีเมล')) {
         setError('email', {
           type: 'manual',
           message: error.message
         })
+      } else if (error.message?.includes('รอสักครู่')) {
+        toast.error(error.message, { duration: 6000 })
       } else {
         toast.error(error.message || 'เกิดข้อผิดพลาดในการลงทะเบียน')
       }

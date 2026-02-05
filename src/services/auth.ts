@@ -146,10 +146,16 @@ export const resetPassword = async (email: string): Promise<void> => {
   }
 }
 
+// Flag shared with authStore to prevent onAuthStateChange interference
+export let isAuthActionInProgress = false
+export const setAuthActionInProgress = (value: boolean) => { isAuthActionInProgress = value }
+
 // Register new school and owner
-export async function registerSchool(data: RegisterData): Promise<void> {
+export async function registerSchool(data: RegisterData): Promise<{ user: User }> {
   let authUserId: string | null = null
   let schoolId: string | null = null
+
+  isAuthActionInProgress = true
 
   try {
     // 1. Create Supabase Auth user
@@ -169,6 +175,9 @@ export async function registerSchool(data: RegisterData): Promise<void> {
       if (authError.message.includes('already registered')) {
         throw new Error('อีเมลนี้ถูกใช้งานแล้ว')
       }
+      if (authError.message.toLowerCase().includes('rate') || authError.message.toLowerCase().includes('limit')) {
+        throw new Error('ส่งอีเมลบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่')
+      }
       throw new Error(authError.message)
     }
 
@@ -177,6 +186,9 @@ export async function registerSchool(data: RegisterData): Promise<void> {
     }
 
     authUserId = authData.user.id
+
+    // Force session sync — ensures JWT is ready before inserting data
+    await supabase.auth.getSession()
 
     // 2. Create unique school ID
     schoolId = `school_${authUserId}_${Date.now()}`
@@ -226,6 +238,14 @@ export async function registerSchool(data: RegisterData): Promise<void> {
       console.error('User document creation error:', userError)
       throw new Error('ไม่สามารถสร้างข้อมูลผู้ใช้ได้')
     }
+
+    // 5. Fetch the newly created user data and return it
+    const userData = await getUserData(authUserId)
+    if (!userData) {
+      throw new Error('ไม่สามารถดึงข้อมูลผู้ใช้ได้')
+    }
+
+    return { user: userData }
   } catch (error: any) {
     console.error('Registration error:', error)
 
@@ -239,5 +259,7 @@ export async function registerSchool(data: RegisterData): Promise<void> {
     }
 
     throw error.message ? error : new Error('เกิดข้อผิดพลาดในการลงทะเบียน')
+  } finally {
+    isAuthActionInProgress = false
   }
 }
