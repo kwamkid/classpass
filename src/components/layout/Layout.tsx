@@ -216,30 +216,6 @@ const Layout = ({ children }: LayoutProps) => {
             <nav className="flex-1 px-3 py-4">
               {menuSections.map(section => renderMenuSection(section))}
             </nav>
-
-            {/* User info */}
-            <div className="sticky bottom-0 bg-white border-t border-gray-200">
-              <div className="p-4">
-                <div className="flex items-center">
-                  <UserAvatar 
-                    user={user} 
-                    size="md" 
-                    showBorder={true}
-                  />
-                  <div className="ml-3 flex-1">
-                    <p className="text-sm font-medium text-gray-900">{user?.displayName}</p>
-                    <p className="text-xs text-gray-500">{user?.email}</p>
-                  </div>
-                </div>
-                <button
-                  onClick={handleLogout}
-                  className="mt-3 w-full flex items-center justify-center px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                >
-                  <LogOut className="w-4 h-4 mr-2" />
-                  ออกจากระบบ
-                </button>
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -282,29 +258,6 @@ const Layout = ({ children }: LayoutProps) => {
               <nav className="px-3 py-4">
                 {menuSections.map(section => renderMenuSection(section, true))}
               </nav>
-            </div>
-
-            <div className="border-t border-gray-200">
-              <div className="p-4">
-                <div className="flex items-center">
-                  <UserAvatar 
-                    user={user} 
-                    size="md" 
-                    showBorder={true}
-                  />
-                  <div className="ml-3 flex-1">
-                    <p className="text-sm font-medium text-gray-900">{user?.displayName}</p>
-                    <p className="text-xs text-gray-500">{user?.email}</p>
-                  </div>
-                </div>
-                <button
-                  onClick={handleLogout}
-                  className="mt-3 w-full flex items-center justify-center px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                >
-                  <LogOut className="w-4 h-4 mr-2" />
-                  ออกจากระบบ
-                </button>
-              </div>
             </div>
           </div>
         </>
