@@ -293,19 +293,19 @@ const StudentsPage = () => {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">
                       นักเรียน
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">
                       ระดับชั้น
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative">
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600 relative">
                       เครดิตคงเหลือ
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">
                       เรียนครั้งสุดท้าย
                     </th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-4 text-center text-sm font-semibold text-gray-600">
                       การดำเนินการ
                     </th>
                   </tr>
@@ -314,46 +314,39 @@ const StudentsPage = () => {
                   {students.map((student) => (
                     <tr key={student.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className="flex-shrink-0 h-10 w-10">
-                            <div className="h-10 w-10 rounded-full bg-primary-100 flex items-center justify-center">
-                              <span className="text-primary-600 font-medium">
-                                {student.firstName[0]}
-                              </span>
-                            </div>
+                        <div>
+                          <div className="text-base font-medium text-gray-900">
+                            {student.firstName} {student.lastName}
+                            {student.nickname && (
+                              <span className="text-gray-500 font-normal"> ({student.nickname})</span>
+                            )}
                           </div>
-                          <div className="ml-4">
-                            <div className="text-sm font-medium text-gray-900">
-                              {student.firstName} {student.lastName}
-                              {student.nickname && ` (${student.nickname})`}
-                            </div>
-                            <div className="text-sm text-gray-500">
-                              {student.phone || '-'}
-                            </div>
+                          <div className="text-sm text-gray-500 mt-0.5">
+                            {student.phone || '-'}
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <td className="px-6 py-4 whitespace-nowrap text-base text-gray-900">
                         {student.currentGrade}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="relative group">
                           <div className="flex items-center cursor-help">
-                            <CreditCard className="w-4 h-4 mr-1.5 text-gray-400" />
-                            <span className={`text-sm font-medium ${
-                              student.totalCredits === 0 || (student.totalCredits && student.totalCredits < 3) ? 'text-red-600' : 
+                            <CreditCard className="w-4 h-4 mr-2 text-gray-400" />
+                            <span className={`text-base font-semibold ${
+                              student.totalCredits === 0 || (student.totalCredits && student.totalCredits < 3) ? 'text-red-600' :
                               'text-gray-900'
                             }`}>
                               {student.totalCredits || 0} ครั้ง
                             </span>
                           </div>
-                          <div className="text-xs text-gray-500 mt-1">
+                          <div className="text-sm text-gray-500 mt-1">
                             เรียนไปแล้ว {student.totalAttendances || 0} ครั้ง
                           </div>
-                          
+
                           {/* Tooltip */}
                           {student.creditsByPackage && student.creditsByPackage.length > 0 && (
-                            <div className="invisible group-hover:visible absolute z-50 left-0 bottom-full mb-2 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-lg">
+                            <div className="invisible group-hover:visible absolute z-50 left-0 bottom-full mb-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-lg shadow-lg">
                               <div className="font-medium mb-2">รายละเอียดเครดิตคงเหลือ:</div>
                               {student.creditsByPackage.map((credit, idx) => (
                                 <div key={idx} className="mb-1.5 pb-1.5 border-b border-gray-700 last:border-0">
@@ -378,8 +371,8 @@ const StudentsPage = () => {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center text-sm text-gray-500">
-                          <Calendar className="w-4 h-4 mr-1.5" />
+                        <div className="flex items-center text-base text-gray-600">
+                          <Calendar className="w-4 h-4 mr-2 text-gray-400" />
                           {formatLastAttendance(student.lastAttendance)}
                         </div>
                       </td>
@@ -387,17 +380,17 @@ const StudentsPage = () => {
                         <div className="flex items-center justify-center space-x-2">
                           <Link
                             to={`/students/${student.id}`}
-                            className="p-1.5 text-gray-600 hover:text-primary-600 hover:bg-gray-100 rounded-md transition-colors"
+                            className="p-2 text-gray-600 hover:text-primary-600 hover:bg-gray-100 rounded-md transition-colors"
                             title="ดูรายละเอียด"
                           >
-                            <Eye className="w-4 h-4" />
+                            <Eye className="w-5 h-5" />
                           </Link>
                           <button
                             onClick={() => navigate(`/credits/purchase?studentId=${student.id}`)}
-                            className="p-1.5 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-md transition-colors"
+                            className="p-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-md transition-colors"
                             title="ซื้อแพ็คเกจ"
                           >
-                            <ShoppingBag className="w-4 h-4" />
+                            <ShoppingBag className="w-5 h-5" />
                           </button>
                         </div>
                       </td>

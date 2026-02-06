@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
-import { 
-  ArrowLeft, 
-  Edit, 
+import {
+  ArrowLeft,
+  Edit,
   User,
   Phone,
   Mail,
@@ -16,7 +16,9 @@ import {
   Trash2,
   ShoppingBag,
   Clock,
-  TrendingDown
+  History,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
 import * as studentService from '../../services/student'
@@ -56,6 +58,8 @@ const StudentDetailPage = () => {
   const [totalAttendances, setTotalAttendances] = useState(0)
   const [lastAttendance, setLastAttendance] = useState<string | null>(null)
   const [loadingCredits, setLoadingCredits] = useState(true)
+  const [attendanceHistory, setAttendanceHistory] = useState<attendanceService.Attendance[]>([])
+  const [showAllHistory, setShowAllHistory] = useState(false)
 
   useEffect(() => {
     if (id) {
@@ -110,14 +114,15 @@ const StudentDetailPage = () => {
       })))
       
       // Load attendance
-      const attendanceHistory = await attendanceService.getAttendanceHistory(
+      const history = await attendanceService.getAttendanceHistory(
         user.schoolId,
         { studentId: id }
       )
-      console.log('Attendance records found:', attendanceHistory.length)
-      
-      setTotalAttendances(attendanceHistory.length)
-      setLastAttendance(attendanceHistory[0]?.checkInDate || null)
+      console.log('Attendance records found:', history.length)
+
+      setAttendanceHistory(history)
+      setTotalAttendances(history.length)
+      setLastAttendance(history[0]?.checkInDate || null)
       
     } catch (error) {
       console.error('Error loading additional data:', error)
@@ -571,6 +576,108 @@ const StudentDetailPage = () => {
                 </div>
               )}
             </div>
+
+            {/* Attendance History */}
+            <div id="attendance-history" className="bg-white shadow-sm rounded-lg p-6 scroll-mt-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-lg font-medium text-gray-900 flex items-center">
+                  <History className="w-5 h-5 mr-2 text-gray-500" />
+                  ประวัติการเข้าเรียน
+                </h2>
+                <span className="text-sm text-gray-500">
+                  ทั้งหมด {attendanceHistory.length} ครั้ง
+                </span>
+              </div>
+
+              {loadingCredits ? (
+                <div className="flex justify-center py-8">
+                  <div className="spinner spinner-primary w-6 h-6"></div>
+                </div>
+              ) : attendanceHistory.length > 0 ? (
+                <div>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full">
+                      <thead>
+                        <tr className="border-b border-gray-200">
+                          <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600">วันที่</th>
+                          <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600">เวลา</th>
+                          <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600">วิชา</th>
+                          <th className="py-3 px-4 text-center text-sm font-semibold text-gray-600">สถานะ</th>
+                          <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600">ผู้เช็คชื่อ</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {(showAllHistory ? attendanceHistory : attendanceHistory.slice(0, 10)).map((record) => (
+                          <tr key={record.id} className="hover:bg-gray-50">
+                            <td className="py-3 px-4">
+                              <div className="text-base text-gray-900">
+                                {new Date(record.checkInDate).toLocaleDateString('th-TH', {
+                                  weekday: 'short',
+                                  day: 'numeric',
+                                  month: 'short',
+                                  year: 'numeric'
+                                })}
+                              </div>
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="text-base text-gray-900">{record.checkInTime}</div>
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="text-base text-gray-900">{record.courseName}</div>
+                              {record.sessionRoom && (
+                                <div className="text-sm text-gray-500">ห้อง {record.sessionRoom}</div>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              {record.isLate ? (
+                                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">
+                                  <Clock className="w-3 h-3 mr-1" />
+                                  สาย {record.lateMinutes} นาที
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                                  <CheckCircle className="w-3 h-3 mr-1" />
+                                  ตรงเวลา
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="text-sm text-gray-600">{record.checkedByName}</div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {attendanceHistory.length > 10 && (
+                    <div className="mt-4 text-center">
+                      <button
+                        onClick={() => setShowAllHistory(!showAllHistory)}
+                        className="inline-flex items-center text-primary-600 hover:text-primary-700 font-medium"
+                      >
+                        {showAllHistory ? (
+                          <>
+                            <ChevronUp className="w-4 h-4 mr-1" />
+                            แสดงน้อยลง
+                          </>
+                        ) : (
+                          <>
+                            <ChevronDown className="w-4 h-4 mr-1" />
+                            ดูทั้งหมด ({attendanceHistory.length} รายการ)
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <History className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+                  <p className="text-gray-500">ยังไม่มีประวัติการเข้าเรียน</p>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Sidebar */}
@@ -646,12 +753,14 @@ const StudentDetailPage = () => {
                 >
                   ซื้อแพ็คเกจ
                 </Link>
-                <Link
-                  to={`/attendance?studentId=${student.id}`}
+                <button
+                  onClick={() => {
+                    document.getElementById('attendance-history')?.scrollIntoView({ behavior: 'smooth' })
+                  }}
                   className="w-full btn-secondary text-center"
                 >
                   ดูประวัติเข้าเรียน
-                </Link>
+                </button>
               </div>
             </div>
           </div>

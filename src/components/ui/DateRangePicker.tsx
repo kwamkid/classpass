@@ -219,9 +219,8 @@ const DateRangePicker: FC<DateRangePickerProps> = ({
     isSelected: boolean
   }) => (
     <Button
-      className={cn('w-full justify-start', isSelected && 'pointer-events-none')}
+      className={cn('w-full justify-start text-base font-normal', isSelected && 'pointer-events-none bg-primary-50')}
       variant="ghost"
-      size="sm"
       onClick={() => setPreset(preset)}
     >
       <span className={cn('mr-2 opacity-0', isSelected && 'opacity-70')}>
@@ -305,6 +304,23 @@ const DateRangePicker: FC<DateRangePickerProps> = ({
       </PopoverTrigger>
       <PopoverContent align={align} className="w-auto p-0">
         <div className="flex flex-col lg:flex-row">
+          {/* Desktop presets sidebar - LEFT side */}
+          {showShortcuts && !isSmallScreen && (
+            <div className="border-r border-gray-200 p-3 min-w-[160px]">
+              <p className="text-sm font-medium text-gray-500 mb-2">ทางลัด</p>
+              <div className="flex flex-col gap-1">
+                {PRESETS.map((preset) => (
+                  <PresetButton
+                    key={preset.name}
+                    preset={preset.name}
+                    label={preset.label}
+                    isSelected={selectedPreset === preset.name}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Main content */}
           <div className="flex flex-col">
             {/* Date inputs and compare toggle */}
@@ -416,23 +432,6 @@ const DateRangePicker: FC<DateRangePickerProps> = ({
               />
             </div>
           </div>
-
-          {/* Desktop presets sidebar */}
-          {showShortcuts && !isSmallScreen && (
-            <div className="border-l border-gray-200 p-3 min-w-[140px]">
-              <p className="text-xs font-medium text-gray-500 mb-2">ทางลัด</p>
-              <div className="flex flex-col gap-1">
-                {PRESETS.map((preset) => (
-                  <PresetButton
-                    key={preset.name}
-                    preset={preset.name}
-                    label={preset.label}
-                    isSelected={selectedPreset === preset.name}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Footer */}
