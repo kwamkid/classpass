@@ -17,8 +17,8 @@ import {
   ShoppingBag,
   Clock,
   History,
-  ChevronDown,
-  ChevronUp
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
 import * as studentService from '../../services/student'
@@ -59,7 +59,8 @@ const StudentDetailPage = () => {
   const [lastAttendance, setLastAttendance] = useState<string | null>(null)
   const [loadingCredits, setLoadingCredits] = useState(true)
   const [attendanceHistory, setAttendanceHistory] = useState<attendanceService.Attendance[]>([])
-  const [showAllHistory, setShowAllHistory] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 10
 
   useEffect(() => {
     if (id) {
@@ -607,7 +608,9 @@ const StudentDetailPage = () => {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
-                        {(showAllHistory ? attendanceHistory : attendanceHistory.slice(0, 10)).map((record) => (
+                        {attendanceHistory
+                          .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                          .map((record) => (
                           <tr key={record.id} className="hover:bg-gray-50">
                             <td className="py-3 px-4">
                               <div className="text-base text-gray-900">
@@ -650,24 +653,56 @@ const StudentDetailPage = () => {
                     </table>
                   </div>
 
-                  {attendanceHistory.length > 10 && (
-                    <div className="mt-4 text-center">
-                      <button
-                        onClick={() => setShowAllHistory(!showAllHistory)}
-                        className="inline-flex items-center text-primary-600 hover:text-primary-700 font-medium"
-                      >
-                        {showAllHistory ? (
-                          <>
-                            <ChevronUp className="w-4 h-4 mr-1" />
-                            แสดงน้อยลง
-                          </>
-                        ) : (
-                          <>
-                            <ChevronDown className="w-4 h-4 mr-1" />
-                            ดูทั้งหมด ({attendanceHistory.length} รายการ)
-                          </>
-                        )}
-                      </button>
+                  {/* Pagination */}
+                  {attendanceHistory.length > itemsPerPage && (
+                    <div className="mt-4 flex items-center justify-between border-t border-gray-200 pt-4">
+                      <div className="text-sm text-gray-500">
+                        แสดง {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, attendanceHistory.length)} จาก {attendanceHistory.length} รายการ
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                          disabled={currentPage === 1}
+                          className="p-2 rounded-md border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                        </button>
+
+                        {Array.from({ length: Math.ceil(attendanceHistory.length / itemsPerPage) }, (_, i) => i + 1)
+                          .filter(page => {
+                            const totalPages = Math.ceil(attendanceHistory.length / itemsPerPage)
+                            if (totalPages <= 5) return true
+                            if (page === 1 || page === totalPages) return true
+                            if (Math.abs(page - currentPage) <= 1) return true
+                            return false
+                          })
+                          .map((page, index, arr) => {
+                            const showEllipsis = index > 0 && arr[index - 1] !== page - 1
+                            return (
+                              <div key={page} className="flex items-center">
+                                {showEllipsis && <span className="px-2 text-gray-400">...</span>}
+                                <button
+                                  onClick={() => setCurrentPage(page)}
+                                  className={`min-w-[36px] h-9 px-3 rounded-md text-sm font-medium transition-colors ${
+                                    currentPage === page
+                                      ? 'bg-primary-600 text-white'
+                                      : 'border border-gray-300 hover:bg-gray-50 text-gray-700'
+                                  }`}
+                                >
+                                  {page}
+                                </button>
+                              </div>
+                            )
+                          })}
+
+                        <button
+                          onClick={() => setCurrentPage(prev => Math.min(prev + 1, Math.ceil(attendanceHistory.length / itemsPerPage)))}
+                          disabled={currentPage === Math.ceil(attendanceHistory.length / itemsPerPage)}
+                          className="p-2 rounded-md border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>

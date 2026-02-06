@@ -33,29 +33,39 @@ const CoursesPage = () => {
 
   const loadCourses = async () => {
   if (!user?.schoolId) return
-  
+
   console.log('Loading courses for schoolId:', user.schoolId)
-  
+
   try {
     setLoading(true)
     const data = await courseService.getCourses(
       user.schoolId,
       statusFilter === 'all' ? undefined : statusFilter
     )
-    
+
     // Filter by category if needed
     let filteredData = data
     if (categoryFilter !== 'all') {
       filteredData = data.filter(course => course.category === categoryFilter)
     }
-    
+
     console.log('Courses loaded:', filteredData)
     setCourses(filteredData)
-    
-    // Load student counts for all courses
-    const courseIds = filteredData.map(course => course.id)
-    await loadCourseStudentCounts(courseIds)
-    
+
+    // Load student counts using batch query (1 query instead of N)
+    if (filteredData.length > 0) {
+      const courseIds = filteredData.map(course => course.id)
+      const countsMap = await creditService.getCourseStudentCountsBatch(courseIds, user.schoolId)
+
+      // Convert Map to Record
+      const counts: Record<string, number> = {}
+      for (const [courseId, count] of countsMap) {
+        counts[courseId] = count
+      }
+      console.log('Course student counts (batch):', counts)
+      setCourseStudentCounts(counts)
+    }
+
   } catch (error) {
     console.error('Error loading courses:', error)
     toast.error('ไม่สามารถโหลดข้อมูลวิชาเรียนได้')
@@ -64,69 +74,37 @@ const CoursesPage = () => {
   }
 }
 
-  const loadCourseStudentCounts = async (courseIds: string[]) => {
-  if (!user?.schoolId || courseIds.length === 0) return
-  
-  try {
-    const counts: Record<string, number> = {}
-    
-    // Load student counts for each course
-    await Promise.all(
-      courseIds.map(async (courseId) => {
-        try {
-          // Get all active credits for this course
-          const courseCredits = await creditService.getSchoolCredits(
-            user.schoolId,
-            { 
-              courseId: courseId, 
-              status: 'active' 
-            }
-          )
-          
-          // Filter only credits with remaining balance
-          const activeCredits = courseCredits.filter(credit => credit.remainingCredits > 0)
-          
-          // Get unique student IDs
-          const uniqueStudentIds = [...new Set(activeCredits.map(credit => credit.studentId))]
-          
-          counts[courseId] = uniqueStudentIds.length
-        } catch (error) {
-          console.error(`Error loading student count for course ${courseId}:`, error)
-          counts[courseId] = 0
-        }
-      })
-    )
-    
-    console.log('Course student counts:', counts)
-    setCourseStudentCounts(counts)
-  } catch (error) {
-    console.error('Error loading course student counts:', error)
-  }
-}
-
   // Search courses
   const handleSearch = async () => {
-  if (!user?.schoolId) return
-  
-  if (searchTerm.trim()) {
-    setLoading(true)
-    try {
-      const results = await courseService.searchCourses(user.schoolId, searchTerm)
-      setCourses(results)
-      
-      // Load student counts for search results
-      const courseIds = results.map(course => course.id)
-      await loadCourseStudentCounts(courseIds)
-      
-    } catch (error) {
-      toast.error('เกิดข้อผิดพลาดในการค้นหา')
-    } finally {
-      setLoading(false)
+    if (!user?.schoolId) return
+
+    if (searchTerm.trim()) {
+      setLoading(true)
+      try {
+        const results = await courseService.searchCourses(user.schoolId, searchTerm)
+        setCourses(results)
+
+        // Load student counts using batch query
+        if (results.length > 0) {
+          const courseIds = results.map(course => course.id)
+          const countsMap = await creditService.getCourseStudentCountsBatch(courseIds, user.schoolId)
+
+          const counts: Record<string, number> = {}
+          for (const [courseId, count] of countsMap) {
+            counts[courseId] = count
+          }
+          setCourseStudentCounts(counts)
+        }
+
+      } catch (error) {
+        toast.error('เกิดข้อผิดพลาดในการค้นหา')
+      } finally {
+        setLoading(false)
+      }
+    } else {
+      loadCourses()
     }
-  } else {
-    loadCourses()
   }
-}
 
   const getCategoryBadge = (category: string) => {
     const categoryConfig = {

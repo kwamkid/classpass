@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { 
-  Plus, 
-  Search, 
-  Filter, 
+import {
+  Plus,
+  Search,
   ShoppingBag,
   CreditCard,
   Calendar,
   User,
-  Eye
+  Eye,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
 import * as studentService from '../../services/student'
@@ -32,75 +33,72 @@ const StudentsPage = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
 
-  // Load students with additional details
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 15
+
+  // Load students with additional details using batch queries
   useEffect(() => {
     if (user?.schoolId) {
       loadStudentsWithDetails()
     }
   }, [user?.schoolId, statusFilter])
 
+  // Reset to page 1 when filter changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [statusFilter, searchTerm])
+
   const loadStudentsWithDetails = async () => {
     if (!user?.schoolId) return
-    
+
     try {
       setLoading(true)
-      console.log('\n=== Starting loadStudentsWithDetails ===')
+      console.log('\n=== Starting loadStudentsWithDetails (Optimized) ===')
       console.log('School ID:', user.schoolId)
-      
-      // Get students
+
+      // Step 1: Get students
       const studentsData = await studentService.getStudents(
         user.schoolId,
         statusFilter === 'all' ? undefined : statusFilter
       )
       console.log('Total students loaded:', studentsData.length)
-      
-      // Get additional details for each student
-      const studentsWithDetails = await Promise.all(
-        studentsData.map(async (student) => {
-          try {
-            console.log(`\nLoading data for: ${student.firstName} ${student.lastName}`)
-            
-            // Use centralized function to get total credits
-            const totalCredits = await creditService.getStudentTotalCredits(student.id, user.schoolId)
-            console.log('Total credits:', totalCredits)
-            
-            // Use centralized function to get credits summary
-            const creditsByPackage = await creditService.getStudentCreditsSummary(student.id, user.schoolId)
-            console.log('Credits by package:', creditsByPackage.length)
-            
-            // Get last attendance
-            const attendanceHistory = await attendanceService.getAttendanceHistory(
-              user.schoolId,
-              { studentId: student.id }
-            )
-            const lastAttendance = attendanceHistory[0]?.checkInDate
-            const totalAttendances = attendanceHistory.length
-            
-            return {
-              ...student,
-              totalCredits,
-              lastAttendance,
-              totalAttendances,
-              creditsByPackage
-            }
-            
-          } catch (error) {
-            console.error(`Error loading details for student ${student.id}:`, error)
-            return {
-              ...student,
-              totalCredits: 0,
-              lastAttendance: undefined,
-              totalAttendances: 0,
-              creditsByPackage: []
-            }
-          }
-        })
-      )
-      
+
+      if (studentsData.length === 0) {
+        setStudents([])
+        return
+      }
+
+      // Step 2: Get all student IDs
+      const studentIds = studentsData.map(s => s.id)
+
+      // Step 3: Batch fetch credits and attendance (2 queries instead of N*3)
+      const [creditsSummary, attendanceSummary] = await Promise.all([
+        creditService.getStudentsCreditsSummaryBatch(studentIds, user.schoolId),
+        attendanceService.getStudentsAttendanceSummaryBatch(studentIds, user.schoolId)
+      ])
+
+      console.log('Credits summary loaded for', creditsSummary.size, 'students')
+      console.log('Attendance summary loaded for', attendanceSummary.size, 'students')
+
+      // Step 4: Merge data
+      const studentsWithDetails: StudentWithDetails[] = studentsData.map(student => {
+        const credits = creditsSummary.get(student.id)
+        const attendance = attendanceSummary.get(student.id)
+
+        return {
+          ...student,
+          totalCredits: credits?.totalCredits || 0,
+          creditsByPackage: credits?.creditsByPackage || [],
+          lastAttendance: attendance?.lastAttendance || undefined,
+          totalAttendances: attendance?.totalAttendances || 0
+        }
+      })
+
       console.log('\n=== Summary ===')
       console.log('Students with details loaded:', studentsWithDetails.length)
       console.log('Students with credits:', studentsWithDetails.filter(s => (s.totalCredits || 0) > 0).length)
-      
+
       setStudents(studentsWithDetails)
     } catch (error) {
       console.error('Error in loadStudentsWithDetails:', error)
@@ -113,50 +111,43 @@ const StudentsPage = () => {
   // Search students
   const handleSearch = async () => {
     if (!user?.schoolId) return
-    
+
     if (searchTerm.trim()) {
       setLoading(true)
       try {
         console.log('Searching for:', searchTerm)
-        
+
         const results = await studentService.searchStudents(user.schoolId, searchTerm)
         console.log('Search results found:', results.length)
-        
-        // Get additional details for search results
-        const resultsWithDetails = await Promise.all(
-          results.map(async (student) => {
-            try {
-              const totalCredits = await creditService.getStudentTotalCredits(student.id, user.schoolId)
-              const creditsByPackage = await creditService.getStudentCreditsSummary(student.id, user.schoolId)
-              
-              const attendanceHistory = await attendanceService.getAttendanceHistory(
-                user.schoolId,
-                { studentId: student.id }
-              )
-              const lastAttendance = attendanceHistory[0]?.checkInDate
-              const totalAttendances = attendanceHistory.length
-              
-              return {
-                ...student,
-                totalCredits,
-                lastAttendance,
-                totalAttendances,
-                creditsByPackage
-              }
-            } catch (error) {
-              console.error(`Error loading details for student ${student.id}:`, error)
-              return {
-                ...student,
-                totalCredits: 0,
-                lastAttendance: undefined,
-                totalAttendances: 0,
-                creditsByPackage: []
-              }
-            }
-          })
-        )
-        
+
+        if (results.length === 0) {
+          setStudents([])
+          return
+        }
+
+        // Batch fetch for search results too
+        const studentIds = results.map(s => s.id)
+
+        const [creditsSummary, attendanceSummary] = await Promise.all([
+          creditService.getStudentsCreditsSummaryBatch(studentIds, user.schoolId),
+          attendanceService.getStudentsAttendanceSummaryBatch(studentIds, user.schoolId)
+        ])
+
+        const resultsWithDetails: StudentWithDetails[] = results.map(student => {
+          const credits = creditsSummary.get(student.id)
+          const attendance = attendanceSummary.get(student.id)
+
+          return {
+            ...student,
+            totalCredits: credits?.totalCredits || 0,
+            creditsByPackage: credits?.creditsByPackage || [],
+            lastAttendance: attendance?.lastAttendance || undefined,
+            totalAttendances: attendance?.totalAttendances || 0
+          }
+        })
+
         setStudents(resultsWithDetails)
+        setCurrentPage(1)
       } catch (error) {
         console.error('Error in search:', error)
         toast.error('เกิดข้อผิดพลาดในการค้นหา')
@@ -168,43 +159,33 @@ const StudentsPage = () => {
     }
   }
 
-  const getStatusBadge = (status: string) => {
-    const statusConfig = {
-      active: { bg: 'bg-green-100', text: 'text-green-700', label: 'กำลังเรียน' },
-      inactive: { bg: 'bg-gray-100', text: 'text-gray-700', label: 'พักการเรียน' },
-      graduated: { bg: 'bg-blue-100', text: 'text-blue-700', label: 'จบการศึกษา' },
-      suspended: { bg: 'bg-red-100', text: 'text-red-700', label: 'พักการเรียน' }
-    }
-    
-    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.active
-    
-    return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.bg} ${config.text}`}>
-        {config.label}
-      </span>
-    )
-  }
-
   const formatLastAttendance = (date?: string) => {
     if (!date) return 'ยังไม่เคยเข้าเรียน'
-    
+
     const attendanceDate = new Date(date)
     const today = new Date()
     const diffTime = Math.abs(today.getTime() - attendanceDate.getTime())
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-    
+
     if (diffDays === 0) return 'วันนี้'
     if (diffDays === 1) return 'เมื่อวาน'
     if (diffDays < 7) return `${diffDays} วันที่แล้ว`
     if (diffDays < 30) return `${Math.floor(diffDays / 7)} สัปดาห์ที่แล้ว`
     if (diffDays < 365) return `${Math.floor(diffDays / 30)} เดือนที่แล้ว`
-    
+
     return attendanceDate.toLocaleDateString('th-TH', {
       year: 'numeric',
       month: 'short',
       day: 'numeric'
     })
   }
+
+  // Pagination calculations
+  const totalPages = Math.ceil(students.length / itemsPerPage)
+  const paginatedStudents = students.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  )
 
   return (
     <Layout>
@@ -311,7 +292,7 @@ const StudentsPage = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {students.map((student) => (
+                  {paginatedStudents.map((student) => (
                     <tr key={student.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div>
@@ -399,6 +380,58 @@ const StudentsPage = () => {
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="px-6 py-4 flex items-center justify-between border-t border-gray-200">
+                <div className="text-sm text-gray-500">
+                  แสดง {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, students.length)} จาก {students.length} คน
+                </div>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                    className="p-2 rounded-md border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter(page => {
+                      if (totalPages <= 5) return true
+                      if (page === 1 || page === totalPages) return true
+                      if (Math.abs(page - currentPage) <= 1) return true
+                      return false
+                    })
+                    .map((page, index, arr) => {
+                      const showEllipsis = index > 0 && arr[index - 1] !== page - 1
+                      return (
+                        <div key={page} className="flex items-center">
+                          {showEllipsis && <span className="px-2 text-gray-400">...</span>}
+                          <button
+                            onClick={() => setCurrentPage(page)}
+                            className={`min-w-[36px] h-9 px-3 rounded-md text-sm font-medium transition-colors ${
+                              currentPage === page
+                                ? 'bg-primary-600 text-white'
+                                : 'border border-gray-300 hover:bg-gray-50 text-gray-700'
+                            }`}
+                          >
+                            {page}
+                          </button>
+                        </div>
+                      )
+                    })}
+
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                    disabled={currentPage === totalPages}
+                    className="p-2 rounded-md border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

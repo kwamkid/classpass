@@ -285,3 +285,67 @@ export const cancelAttendance = async (
     throw new Error(error.message || 'เกิดข้อผิดพลาดในการยกเลิกการเช็คชื่อ')
   }
 }
+
+// ====================================
+// BATCH QUERY FUNCTIONS (for performance)
+// ====================================
+
+export interface StudentAttendanceSummary {
+  studentId: string
+  totalAttendances: number
+  lastAttendance: string | null
+}
+
+/**
+ * Get attendance summary for multiple students in a single query
+ * Much faster than calling getAttendanceHistory for each student
+ */
+export const getStudentsAttendanceSummaryBatch = async (
+  studentIds: string[],
+  schoolId: string
+): Promise<Map<string, StudentAttendanceSummary>> => {
+  try {
+    if (studentIds.length === 0) return new Map()
+
+    // Query all attendance for these students
+    const { data: rows, error } = await supabase
+      .from('attendance')
+      .select('student_id, check_in_date')
+      .eq('school_id', schoolId)
+      .in('student_id', studentIds)
+      .order('check_in_date', { ascending: false })
+
+    if (error) {
+      console.error('Error getting batch attendance:', error)
+      return new Map()
+    }
+
+    // Initialize all students
+    const summaryMap = new Map<string, StudentAttendanceSummary>()
+    for (const studentId of studentIds) {
+      summaryMap.set(studentId, {
+        studentId,
+        totalAttendances: 0,
+        lastAttendance: null
+      })
+    }
+
+    // Process attendance records
+    for (const row of rows || []) {
+      const studentId = row.student_id
+      const summary = summaryMap.get(studentId)
+      if (!summary) continue
+
+      summary.totalAttendances += 1
+      // First record is the latest (sorted desc)
+      if (!summary.lastAttendance) {
+        summary.lastAttendance = row.check_in_date
+      }
+    }
+
+    return summaryMap
+  } catch (error) {
+    console.error('Error getting batch attendance summary:', error)
+    return new Map()
+  }
+}

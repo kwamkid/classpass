@@ -27,16 +27,18 @@ import Layout from '../../components/layout/Layout'
 const AttendancePage = () => {
   const { user } = useAuthStore()
   const [loading, setLoading] = useState(true)
+  const [loadingStudents, setLoadingStudents] = useState(false) // Loading state for student credits
   const [checkingIn, setCheckingIn] = useState<string | null>(null)
-  
+
   // Data
   const [students, setStudents] = useState<studentService.Student[]>([])
   const [courses, setCourses] = useState<courseService.Course[]>([])
   const [selectedDateAttendance, setSelectedDateAttendance] = useState<attendanceService.Attendance[]>([])
   const [studentCredits, setStudentCredits] = useState<Map<string, studentCreditService.StudentCredit[]>>(new Map())
-  
+
   // Search & Filter
   const [searchTerm, setSearchTerm] = useState('')
+  const [courseSearchTerm, setCourseSearchTerm] = useState('')
   const [selectedCourse, setSelectedCourse] = useState<courseService.Course | null>(null)
   const [filteredStudents, setFilteredStudents] = useState<studentService.Student[]>([])
   
@@ -132,28 +134,32 @@ const AttendancePage = () => {
 
   const loadStudentCredits = async () => {
     if (!selectedCourse || !user?.schoolId || students.length === 0) return
-    
+
     try {
-      const creditsMap = new Map<string, studentCreditService.StudentCredit[]>()
-      
-      // Use centralized function for each student
-      for (const student of students) {
-        const credits = await studentCreditService.getStudentCreditsForCourse(
-          student.id,
-          selectedCourse.id,
-          user.schoolId
-        )
-        
+      setLoadingStudents(true) // Show loading when switching courses
+      // Use batch query (1 query instead of N)
+      const studentIds = students.map(s => s.id)
+      const creditsMap = await studentCreditService.getStudentsCreditsForCourseBatch(
+        studentIds,
+        selectedCourse.id,
+        user.schoolId
+      )
+
+      // Filter out students with no credits
+      const filteredMap = new Map<string, studentCreditService.StudentCredit[]>()
+      for (const [studentId, credits] of creditsMap) {
         if (credits.length > 0) {
-          creditsMap.set(student.id, credits)
+          filteredMap.set(studentId, credits)
         }
       }
-      
-      console.log(`Loaded credits for ${creditsMap.size} students`)
-      setStudentCredits(creditsMap)
+
+      console.log(`Loaded credits for ${filteredMap.size} students (batch)`)
+      setStudentCredits(filteredMap)
     } catch (error) {
       console.error('Error loading student credits:', error)
       toast.error('ไม่สามารถโหลดข้อมูลเครดิตได้')
+    } finally {
+      setLoadingStudents(false)
     }
   }
 
@@ -353,9 +359,9 @@ const AttendancePage = () => {
     <Layout>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 md:py-8">
         {/* Header */}
-        <div className="mb-4 md:mb-8">
+        <div className="mb-4 md:mb-6">
           <h1 className="text-xl md:text-2xl font-bold text-gray-900">เช็คชื่อนักเรียน</h1>
-          
+
           {/* Date Selector */}
           <div className="mt-3 flex items-center gap-3">
             <button
@@ -364,7 +370,7 @@ const AttendancePage = () => {
             >
               <ChevronLeft className="w-5 h-5" />
             </button>
-            
+
             <input
               type="date"
               value={selectedDate}
@@ -372,26 +378,26 @@ const AttendancePage = () => {
               max={new Date().toISOString().split('T')[0]}
               className="input-base text-sm w-auto"
             />
-            
+
             <button
               onClick={() => changeDate('next')}
               disabled={isToday}
               className={`p-2 rounded-md ${
-                isToday 
-                  ? 'text-gray-300 cursor-not-allowed' 
+                isToday
+                  ? 'text-gray-300 cursor-not-allowed'
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
               }`}
             >
               <ChevronRight className="w-5 h-5" />
             </button>
-            
+
             {isPastDate && (
               <span className="text-sm text-orange-600 flex items-center">
                 <CalendarClock className="w-4 h-4 mr-1" />
                 เช็คชื่อย้อนหลัง
               </span>
             )}
-            
+
             {!isToday && (
               <button
                 onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
@@ -403,396 +409,255 @@ const AttendancePage = () => {
           </div>
         </div>
 
-        {/* Course Selection */}
-        {courses.length > 1 && (
-          <div className="bg-white rounded-lg shadow-sm p-4 md:p-6 mb-4 md:mb-6">
-            <h2 className="text-base md:text-lg font-medium text-gray-900 mb-3 md:mb-4 flex items-center">
-              <BookOpen className="w-4 h-4 md:w-5 md:h-5 mr-2 text-gray-500" />
-              เลือกวิชา
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
-              {courses.map(course => (
-                <button
-                  key={course.id}
-                  onClick={() => setSelectedCourse(course)}
-                  className={`p-3 md:p-4 rounded-lg border-2 transition-colors ${
-                    selectedCourse?.id === course.id
-                      ? 'border-primary-500 bg-primary-50'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <h3 className="font-medium text-sm md:text-base text-gray-900">{course.name}</h3>
-                  <p className="text-xs md:text-sm text-gray-500 mt-1">{course.code}</p>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
+        {/* 2-Column Layout */}
+        <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
+          {/* Left Column - Course Selection */}
+          <div className="lg:w-64 flex-shrink-0">
+            <div className="bg-white rounded-lg shadow-sm p-4 lg:sticky lg:top-4">
+              <h2 className="text-sm font-medium text-gray-700 mb-3">เลือกวิชา</h2>
 
-        {selectedCourse ? (
-          <>
-            {/* Stats - Mobile optimized */}
-            <div className="grid grid-cols-3 gap-2 md:gap-4 mb-4 md:mb-6">
-              <div className="bg-white rounded-lg shadow-sm p-3 md:p-4">
-                <div className="flex flex-col md:flex-row items-center md:justify-between">
-                  <div className="text-center md:text-left">
-                    <p className="text-xs md:text-sm text-gray-500">นักเรียนทั้งหมด</p>
-                    <p className="text-xl md:text-2xl font-semibold text-gray-900">
-                      {stats.totalStudents}
-                    </p>
-                  </div>
-                  <Users className="w-6 h-6 md:w-8 md:h-8 text-gray-400 mt-2 md:mt-0" />
+              {/* Course Search */}
+              {courses.length > 4 && (
+                <div className="relative mb-3">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="ค้นหาวิชา..."
+                    className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500"
+                    value={courseSearchTerm}
+                    onChange={(e) => setCourseSearchTerm(e.target.value)}
+                  />
                 </div>
-              </div>
-              
-              <div className="bg-white rounded-lg shadow-sm p-3 md:p-4">
-                <div className="flex flex-col md:flex-row items-center md:justify-between">
-                  <div className="text-center md:text-left">
-                    <p className="text-xs md:text-sm text-gray-500">เช็คชื่อแล้ว</p>
-                    <p className="text-xl md:text-2xl font-semibold text-green-600">
-                      {stats.checkedIn}
-                    </p>
-                  </div>
-                  <CheckCircle className="w-6 h-6 md:w-8 md:h-8 text-green-400 mt-2 md:mt-0" />
-                </div>
-              </div>
-              
-              <div className="bg-white rounded-lg shadow-sm p-3 md:p-4">
-                <div className="flex flex-col md:flex-row items-center md:justify-between">
-                  <div className="text-center md:text-left">
-                    <p className="text-xs md:text-sm text-gray-500">ยังไม่มา</p>
-                    <p className="text-xl md:text-2xl font-semibold text-red-600">
-                      {stats.absent}
-                    </p>
-                  </div>
-                  <XCircle className="w-6 h-6 md:w-8 md:h-8 text-red-400 mt-2 md:mt-0" />
-                </div>
-              </div>
-            </div>
+              )}
 
-            {/* Search */}
-            <div className="bg-white rounded-lg shadow-sm p-4 md:p-6 mb-4 md:mb-6">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 md:w-5 md:h-5 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="ค้นหาด้วยชื่อนักเรียน, ชื่อเล่น, ชื่อผู้ปกครอง, เบอร์โทร..."
-                  className="input-base pl-9 md:pl-10 text-sm md:text-base"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  autoFocus
-                />
-              </div>
-            </div>
-
-            {/* Student List - Mobile optimized */}
-            <div className="space-y-3 md:space-y-4">
-              {filteredStudents.length === 0 ? (
-                <div className="bg-white rounded-lg shadow-sm p-8 md:p-12 text-center">
-                  <User className="w-10 h-10 md:w-12 md:h-12 text-gray-400 mx-auto mb-3 md:mb-4" />
-                  <p className="text-sm md:text-base text-gray-500">ไม่พบนักเรียนที่ค้นหา</p>
-                </div>
-              ) : (
-                filteredStudents.map(student => {
-                  const checkedIn = isCheckedIn(student.id)
-                  const attendance = selectedDateAttendance.find(a => a.studentId === student.id)
-                  const remainingCredits = getStudentCredit(student.id)
-                  
-                  // Double check - should not happen because of filterStudents
-                  if (remainingCredits === 0) return null
-                  
-                  return (
-                    <div
-                      key={student.id}
-                      className={`bg-white rounded-lg shadow-sm p-4 md:p-6 ${
-                        checkedIn ? 'opacity-75' : ''
+              {/* Course List */}
+              <div className="space-y-1 max-h-[60vh] overflow-y-auto">
+                {courses
+                  .filter(course => {
+                    if (!courseSearchTerm.trim()) return true
+                    const search = courseSearchTerm.toLowerCase()
+                    return (
+                      course.name.toLowerCase().includes(search) ||
+                      course.code.toLowerCase().includes(search)
+                    )
+                  })
+                  .map(course => (
+                    <button
+                      key={course.id}
+                      onClick={() => setSelectedCourse(course)}
+                      className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
+                        selectedCourse?.id === course.id
+                          ? 'bg-primary-600 text-white'
+                          : 'text-gray-700 hover:bg-gray-100'
                       }`}
                     >
-                      {/* Mobile Layout */}
-                      <div className="md:hidden">
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex items-center space-x-3">
-                            {/* Student Avatar */}
-                            <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                              checkedIn ? 'bg-green-100' : 'bg-primary-100'
-                            }`}>
-                              {checkedIn ? (
-                                <CheckCircle className="w-6 h-6 text-green-600" />
-                              ) : (
-                                <span className="text-lg font-semibold text-primary-600">
-                                  {student.firstName[0]}
-                                </span>
-                              )}
-                            </div>
-                            
-                            {/* Student Info */}
-                            <div className="flex-1">
-                              <h3 className="font-medium text-sm text-gray-900">
-                                {student.firstName} {student.lastName}
-                              </h3>
-                              <p className="text-xs text-gray-500">
-                                {student.studentCode} • {student.currentGrade}
-                              </p>
-                            </div>
-                          </div>
-                          
-                          {/* Credit Badge */}
-                          <div className="text-right">
-                            <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                              remainingCredits === 0 ? 'bg-red-100 text-red-700' :
-                              remainingCredits <= 2 ? 'bg-yellow-100 text-yellow-700' :
-                              'bg-green-100 text-green-700'
-                            }`}>
-                              <CreditCard className="w-3 h-3 mr-1" />
-                              {remainingCredits}
-                            </div>
-                          </div>
-                        </div>
-                        
-                        {/* Parent Info & Action */}
-                        <div className="space-y-2">
-                          {student.parents && student.parents[0] && (
-                            <p className="text-xs text-gray-500">
-                              ผู้ปกครอง: {student.parents[0].firstName} - {student.parents[0].phone}
-                            </p>
-                          )}
-                          
-                          {checkedIn ? (
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs text-green-600">เช็คชื่อแล้ว</span>
-                              <span className="text-xs text-gray-500 flex items-center">
-                                <Clock className="w-3 h-3 mr-1" />
-                                {attendance && formatTime(attendance.checkInTime)}
-                              </span>
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => handleCheckIn(student)}
-                              disabled={checkingIn === student.id || remainingCredits === 0}
-                              className="w-full btn-primary text-sm py-2"
-                            >
-                              {checkingIn === student.id ? (
-                                <>
-                                  <div className="spinner mr-2"></div>
-                                  กำลังเช็คชื่อ...
-                                </>
-                              ) : remainingCredits === 0 ? (
-                                'ไม่มีเครดิต'
-                              ) : (
-                                'เช็คชื่อ'
-                              )}
-                            </button>
-                          )}
-                        </div>
+                      <div className="font-medium truncate">{course.name}</div>
+                      <div className={`text-xs ${selectedCourse?.id === course.id ? 'text-primary-200' : 'text-gray-500'}`}>
+                        {course.code}
                       </div>
-
-                      {/* Desktop Layout */}
-                      <div className="hidden md:flex items-center justify-between">
-                        <div className="flex items-center space-x-4">
-                          {/* Student Avatar */}
-                          <div className={`w-16 h-16 rounded-full flex items-center justify-center ${
-                            checkedIn ? 'bg-green-100' : 'bg-primary-100'
-                          }`}>
-                            {checkedIn ? (
-                              <CheckCircle className="w-8 h-8 text-green-600" />
-                            ) : (
-                              <span className="text-2xl font-semibold text-primary-600">
-                                {student.firstName[0]}
-                              </span>
-                            )}
-                          </div>
-                          
-                          {/* Student Info */}
-                          <div>
-                            <h3 className="text-lg font-medium text-gray-900">
-                              {student.firstName} {student.lastName}
-                              {student.nickname && (
-                                <span className="text-gray-500 ml-2">({student.nickname})</span>
-                              )}
-                            </h3>
-                            <p className="text-sm text-gray-500">
-                              {student.studentCode} • {student.currentGrade}
-                            </p>
-                            {student.parents && student.parents[0] && (
-                              <p className="text-sm text-gray-500">
-                                ผู้ปกครอง: {student.parents[0].firstName} - {student.parents[0].phone}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                        
-                        {/* Action */}
-                        <div className="flex items-center space-x-4">
-                          {/* Credit Info */}
-                          <div className="text-right">
-                            <p className="text-sm text-gray-500">เครดิตคงเหลือ</p>
-                            <p className="text-lg font-semibold text-primary-600 flex items-center">
-                              <CreditCard className="w-4 h-4 mr-1" />
-                              {remainingCredits} ครั้ง
-                            </p>
-                          </div>
-                          
-                          {/* Check-in Button/Status */}
-                          {checkedIn ? (
-                            <div className="text-right">
-                              <p className="text-sm text-gray-500">เช็คชื่อแล้ว</p>
-                              <p className="text-lg font-medium text-green-600 flex items-center">
-                                <Clock className="w-4 h-4 mr-1" />
-                                {attendance && formatTime(attendance.checkInTime)}
-                              </p>
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => handleCheckIn(student)}
-                              disabled={checkingIn === student.id || remainingCredits === 0}
-                              className="btn-primary inline-flex items-center min-w-[120px]"
-                            >
-                              {checkingIn === student.id ? (
-                                <>
-                                  <div className="spinner mr-2"></div>
-                                  กำลังเช็คชื่อ...
-                                </>
-                              ) : remainingCredits === 0 ? (
-                                <>
-                                  <XCircle className="w-5 h-5 mr-2" />
-                                  ไม่มีเครดิต
-                                </>
-                              ) : (
-                                <>
-                                  <CheckCircle className="w-5 h-5 mr-2" />
-                                  เช็คชื่อ
-                                </>
-                              )}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )
-                }).filter(Boolean)
-              )}
-            </div>
-
-            {/* Today's Attendance Summary - Mobile optimized */}
-            {selectedDateAttendance.length > 0 && (
-              <div className="mt-6 md:mt-8">
-                <h2 className="text-base md:text-lg font-medium text-gray-900 mb-3 md:mb-4">
-                  รายชื่อนักเรียนที่เช็คชื่อแล้ว
-                </h2>
-                
-                {/* Mobile Card View */}
-                <div className="md:hidden space-y-3">
-                  {selectedDateAttendance.map((attendance, index) => (
-                    <div key={attendance.id} className="bg-white rounded-lg shadow-sm p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center space-x-3">
-                          <span className="text-sm font-medium text-gray-500">#{index + 1}</span>
-                          <div>
-                            <p className="text-sm font-medium text-gray-900">
-                              {attendance.studentName}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {attendance.studentCode}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm font-medium text-gray-900">
-                            {formatTime(attendance.checkInTime)}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {attendance.checkedByName}
-                          </p>
-                        </div>
-                      </div>
-                      {attendance.teacherNotes && (
-                        <p className="text-xs text-gray-600 mt-2 italic">
-                          หมายเหตุ: {attendance.teacherNotes}
-                        </p>
-                      )}
-                      <button
-                        onClick={() => handleCancelAttendance(attendance)}
-                        className="w-full mt-2 text-red-600 hover:text-red-900 text-sm font-medium py-1 border border-red-200 rounded hover:bg-red-50"
-                      >
-                        ยกเลิกการเช็คชื่อ
-                      </button>
-                    </div>
+                    </button>
                   ))}
-                </div>
 
-                {/* Desktop Table */}
-                <div className="hidden md:block bg-white rounded-lg shadow-sm overflow-hidden">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          ลำดับ
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          ชื่อ-นามสกุล
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          เวลาเช็คชื่อ
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          ผู้เช็คชื่อ
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          หมายเหตุ
-                        </th>
-                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          จัดการ
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {selectedDateAttendance.map((attendance, index) => (
-                        <tr key={attendance.id}>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {index + 1}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div>
-                              <p className="text-sm font-medium text-gray-900">
-                                {attendance.studentName}
-                              </p>
-                              <p className="text-xs text-gray-500">
-                                {attendance.studentCode}
-                              </p>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {formatTime(attendance.checkInTime)}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {attendance.checkedByName}
-                          </td>
-                          <td className="px-6 py-4 text-sm text-gray-600">
-                            {attendance.teacherNotes || '-'}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-center">
-                            <button
-                              onClick={() => handleCancelAttendance(attendance)}
-                              className="text-red-600 hover:text-red-900 text-sm font-medium"
-                            >
-                              ยกเลิก
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                {courses.filter(course => {
+                  if (!courseSearchTerm.trim()) return true
+                  const search = courseSearchTerm.toLowerCase()
+                  return (
+                    course.name.toLowerCase().includes(search) ||
+                    course.code.toLowerCase().includes(search)
+                  )
+                }).length === 0 && (
+                  <p className="text-sm text-gray-400 text-center py-4">ไม่พบวิชาที่ค้นหา</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column - Students */}
+          <div className="flex-1 min-w-0">
+            {selectedCourse ? (
+              loadingStudents ? (
+                /* Loading State */
+                <div className="bg-white rounded-lg shadow-sm p-12 text-center">
+                  <div className="spinner spinner-primary w-8 h-8 mx-auto mb-4"></div>
+                  <p className="text-gray-500">กำลังโหลดข้อมูลนักเรียน...</p>
                 </div>
+              ) : (
+                <>
+                  {/* Stats - Compact */}
+                  <div className="grid grid-cols-3 gap-2 md:gap-4 mb-4">
+                    <div className="bg-white rounded-lg shadow-sm p-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs text-gray-500">ทั้งหมด</p>
+                          <p className="text-xl font-semibold text-gray-900">{stats.totalStudents}</p>
+                        </div>
+                        <Users className="w-5 h-5 text-gray-400" />
+                      </div>
+                    </div>
+                    <div className="bg-white rounded-lg shadow-sm p-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs text-gray-500">เช็คแล้ว</p>
+                          <p className="text-xl font-semibold text-green-600">{stats.checkedIn}</p>
+                        </div>
+                        <CheckCircle className="w-5 h-5 text-green-400" />
+                      </div>
+                    </div>
+                    <div className="bg-white rounded-lg shadow-sm p-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs text-gray-500">ยังไม่มา</p>
+                          <p className="text-xl font-semibold text-red-600">{stats.absent}</p>
+                        </div>
+                        <XCircle className="w-5 h-5 text-red-400" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Search */}
+                  <div className="bg-white rounded-lg shadow-sm p-3 mb-4">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input
+                        type="text"
+                        placeholder="ค้นหาด้วยชื่อนักเรียน, ชื่อเล่น, เบอร์โทร..."
+                        className="input-base pl-9 text-sm"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Checked-in Students List */}
+                  {selectedDateAttendance.length > 0 && (
+                    <div className="mb-4">
+                      <h2 className="text-sm font-medium text-green-700 mb-2 flex items-center">
+                        <CheckCircle className="w-4 h-4 mr-1" />
+                        เช็คชื่อแล้ว ({selectedDateAttendance.length})
+                      </h2>
+                      <div className="bg-green-50 rounded-lg overflow-hidden border border-green-100">
+                        <div className="divide-y divide-green-100">
+                          {selectedDateAttendance.map((attendance, index) => {
+                            const student = students.find(s => s.id === attendance.studentId)
+                            const parentPhone = student?.parents?.[0]?.phone || student?.phone
+                            const remainingCredits = getStudentCredit(attendance.studentId)
+                            return (
+                              <div key={attendance.id} className="px-3 py-2 flex items-center justify-between text-sm">
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <span className="text-green-600 w-5 text-right font-medium">{index + 1}</span>
+                                  <div className="min-w-0">
+                                    <span className="font-medium text-gray-900">
+                                      {attendance.studentName}
+                                      {attendance.studentNickname && (
+                                        <span className="text-gray-500 ml-1">({attendance.studentNickname})</span>
+                                      )}
+                                    </span>
+                                    {parentPhone && (
+                                      <span className="text-gray-400 ml-2">{parentPhone}</span>
+                                    )}
+                                    {attendance.teacherNotes && (
+                                      <span className="text-xs text-orange-500 ml-2">({attendance.teacherNotes})</span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-3 flex-shrink-0">
+                                  {/* Credit Badge */}
+                                  <div className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                    remainingCredits <= 2 ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'
+                                  }`}>
+                                    {remainingCredits} ครั้ง
+                                  </div>
+                                  <span className="text-gray-500 text-xs">{formatTime(attendance.checkInTime)}</span>
+                                  <button
+                                    onClick={() => handleCancelAttendance(attendance)}
+                                    className="text-red-500 hover:text-red-700 text-xs"
+                                  >
+                                    ยกเลิก
+                                  </button>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Pending Students List - Only show students NOT checked in */}
+                  <div className="space-y-2">
+                    <h2 className="text-sm font-medium text-gray-700 mb-2">
+                      รอเช็คชื่อ ({filteredStudents.filter(s => !isCheckedIn(s.id) && getStudentCredit(s.id) > 0).length})
+                    </h2>
+                    {filteredStudents.filter(s => !isCheckedIn(s.id)).length === 0 ? (
+                      <div className="bg-white rounded-lg shadow-sm p-8 text-center">
+                        <CheckCircle className="w-10 h-10 text-green-400 mx-auto mb-3" />
+                        <p className="text-sm text-gray-500">เช็คชื่อครบทุกคนแล้ว</p>
+                      </div>
+                    ) : (
+                      filteredStudents
+                        .filter(student => !isCheckedIn(student.id)) // Only show NOT checked in
+                        .map(student => {
+                          const remainingCredits = getStudentCredit(student.id)
+                          const parentPhone = student.parents?.[0]?.phone || student.phone
+
+                          if (remainingCredits === 0) return null
+
+                          return (
+                            <div
+                              key={student.id}
+                              className="bg-white rounded-lg shadow-sm p-3"
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                {/* Student Info */}
+                                <div className="flex-1 min-w-0">
+                                  <h3 className="font-medium text-sm text-gray-900 truncate">
+                                    {student.firstName} {student.lastName}
+                                    {student.nickname && (
+                                      <span className="text-gray-500 ml-1">({student.nickname})</span>
+                                    )}
+                                  </h3>
+                                  <p className="text-xs text-gray-500">
+                                    {student.currentGrade}
+                                    {parentPhone && <span> • {parentPhone}</span>}
+                                  </p>
+                                </div>
+
+                                {/* Credit Badge */}
+                                <div className={`px-2 py-1 rounded-full text-xs font-medium flex-shrink-0 ${
+                                  remainingCredits <= 2 ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'
+                                }`}>
+                                  {remainingCredits} ครั้ง
+                                </div>
+
+                                {/* Check-in Button */}
+                                <button
+                                  onClick={() => handleCheckIn(student)}
+                                  disabled={checkingIn === student.id}
+                                  className="btn-primary text-xs px-3 py-1.5 flex-shrink-0"
+                                >
+                                  {checkingIn === student.id ? (
+                                    <div className="spinner w-3 h-3"></div>
+                                  ) : (
+                                    'เช็คชื่อ'
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          )
+                        }).filter(Boolean)
+                    )}
+                  </div>
+                </>
+              )
+            ) : (
+              <div className="bg-white rounded-lg shadow-sm p-8 md:p-12 text-center">
+                <BookOpen className="w-10 h-10 text-gray-400 mx-auto mb-3" />
+                <h3 className="text-base font-medium text-gray-900 mb-2">กรุณาเลือกวิชา</h3>
+                <p className="text-sm text-gray-500">เลือกวิชาจากรายการด้านซ้ายเพื่อเช็คชื่อนักเรียน</p>
               </div>
             )}
-          </>
-        ) : (
-          <div className="bg-white rounded-lg shadow-sm p-8 md:p-12 text-center">
-            <BookOpen className="w-10 h-10 md:w-12 md:h-12 text-gray-400 mx-auto mb-3 md:mb-4" />
-            <h3 className="text-base md:text-lg font-medium text-gray-900 mb-2">กรุณาเลือกวิชา</h3>
-            <p className="text-sm md:text-base text-gray-500">เลือกวิชาที่ต้องการเช็คชื่อนักเรียน</p>
           </div>
-        )}
+        </div>
 
         {/* Backdate Modal */}
         {showBackdateModal && pendingCheckIn && (

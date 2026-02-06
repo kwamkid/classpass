@@ -537,3 +537,194 @@ export const getAllStudentCreditsDebug = async (
     return []
   }
 }
+
+// ====================================
+// BATCH QUERY FUNCTIONS (for performance)
+// ====================================
+
+export interface StudentCreditSummary {
+  studentId: string
+  totalCredits: number
+  creditsByPackage: CreditPackageSummary[]
+}
+
+/**
+ * Get credits summary for multiple students in a single query
+ * Much faster than calling getStudentTotalCredits for each student
+ */
+export const getStudentsCreditsSummaryBatch = async (
+  studentIds: string[],
+  schoolId: string
+): Promise<Map<string, StudentCreditSummary>> => {
+  try {
+    if (studentIds.length === 0) return new Map()
+
+    const { data: rows, error } = await supabase
+      .from('student_credits')
+      .select('*')
+      .eq('school_id', schoolId)
+      .eq('status', 'active')
+      .gt('remaining_credits', 0)
+      .in('student_id', studentIds)
+
+    if (error) {
+      console.error('Error getting batch credits:', error)
+      return new Map()
+    }
+
+    // Group by student
+    const summaryMap = new Map<string, StudentCreditSummary>()
+
+    // Initialize all students with empty data
+    for (const studentId of studentIds) {
+      summaryMap.set(studentId, {
+        studentId,
+        totalCredits: 0,
+        creditsByPackage: []
+      })
+    }
+
+    // Process credits
+    for (const row of rows || []) {
+      const studentId = row.student_id
+      const summary = summaryMap.get(studentId)
+      if (!summary) continue
+
+      summary.totalCredits += row.remaining_credits || 0
+      summary.creditsByPackage.push({
+        courseName: row.course_name || (row.is_universal ? 'ใช้ได้ทุกวิชา' : row.applicable_course_names?.[0] || 'ไม่ระบุ'),
+        packageName: row.package_name || '',
+        remainingCredits: row.remaining_credits || 0,
+        expiryDate: row.expiry_date
+      })
+    }
+
+    return summaryMap
+  } catch (error) {
+    console.error('Error getting batch credits summary:', error)
+    return new Map()
+  }
+}
+
+/**
+ * Get unique student count for each course in a single query
+ * Much faster than calling getSchoolCredits for each course
+ */
+export const getCourseStudentCountsBatch = async (
+  courseIds: string[],
+  schoolId: string
+): Promise<Map<string, number>> => {
+  try {
+    if (courseIds.length === 0) return new Map()
+
+    const { data: rows, error } = await supabase
+      .from('student_credits')
+      .select('student_id, course_id, applicable_course_ids, is_universal')
+      .eq('school_id', schoolId)
+      .eq('status', 'active')
+      .gt('remaining_credits', 0)
+
+    if (error) {
+      console.error('Error getting batch course student counts:', error)
+      return new Map()
+    }
+
+    // Initialize counts
+    const countsMap = new Map<string, Set<string>>()
+    for (const courseId of courseIds) {
+      countsMap.set(courseId, new Set())
+    }
+
+    // Process credits - check if credit applies to each course
+    for (const row of rows || []) {
+      const studentId = row.student_id
+
+      for (const courseId of courseIds) {
+        const appliesToCourse =
+          row.is_universal ||
+          row.course_id === courseId ||
+          (row.applicable_course_ids && row.applicable_course_ids.includes(courseId))
+
+        if (appliesToCourse) {
+          const students = countsMap.get(courseId)
+          if (students) {
+            students.add(studentId)
+          }
+        }
+      }
+    }
+
+    // Convert sets to counts
+    const resultMap = new Map<string, number>()
+    for (const [courseId, students] of countsMap) {
+      resultMap.set(courseId, students.size)
+    }
+
+    return resultMap
+  } catch (error) {
+    console.error('Error getting batch course student counts:', error)
+    return new Map()
+  }
+}
+
+/**
+ * Get credits for multiple students for a specific course in a single query
+ * Much faster than calling getStudentCreditsForCourse for each student
+ */
+export const getStudentsCreditsForCourseBatch = async (
+  studentIds: string[],
+  courseId: string,
+  schoolId: string
+): Promise<Map<string, StudentCredit[]>> => {
+  try {
+    if (studentIds.length === 0) return new Map()
+
+    const { data: rows, error } = await supabase
+      .from('student_credits')
+      .select('*')
+      .eq('school_id', schoolId)
+      .eq('status', 'active')
+      .gt('remaining_credits', 0)
+      .in('student_id', studentIds)
+
+    if (error) {
+      console.error('Error getting batch student credits for course:', error)
+      return new Map()
+    }
+
+    // Initialize all students
+    const creditsMap = new Map<string, StudentCredit[]>()
+    for (const studentId of studentIds) {
+      creditsMap.set(studentId, [])
+    }
+
+    // Process credits - filter for this course
+    for (const row of rows || []) {
+      const canUseForCourse =
+        row.is_universal ||
+        row.course_id === courseId ||
+        (row.applicable_course_ids && row.applicable_course_ids.includes(courseId))
+
+      if (canUseForCourse) {
+        const studentId = row.student_id
+        const credits = creditsMap.get(studentId)
+        if (credits) {
+          const credit = dbCreditToCredit(row as DbStudentCredit) as StudentCredit
+          credits.push(credit)
+        }
+      }
+    }
+
+    // Sort each student's credits by purchase date (FIFO)
+    for (const credits of creditsMap.values()) {
+      credits.sort((a, b) =>
+        new Date(a.purchaseDate).getTime() - new Date(b.purchaseDate).getTime()
+      )
+    }
+
+    return creditsMap
+  } catch (error) {
+    console.error('Error getting batch student credits for course:', error)
+    return new Map()
+  }
+}
